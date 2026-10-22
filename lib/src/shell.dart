@@ -7,6 +7,7 @@ import 'countries.dart';
 import 'photo.dart';
 import 'store.dart';
 import 'theme.dart';
+import 'trips/screens/trips_list_screen.dart';
 
 const List<String> _swatches = <String>[
   '#121212',
@@ -914,6 +915,21 @@ class _HomePage extends StatelessWidget {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 12),
+        _Pill(
+          label: 'Mes voyages',
+          icon: Icons.luggage_outlined,
+          background: kInk,
+          foreground: Colors.white,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (BuildContext context) =>
+                    TripsListScreen(userId: user.id),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 18),
         _WeekCard(
