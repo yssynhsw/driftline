@@ -12,17 +12,35 @@ Open http://localhost:8080.
 
 Windows desktop needs the Visual Studio “Desktop development with C++” workload. Android needs an Android SDK.
 
-## One administrator
+## Test administrator
 
 Public registration always creates a `user`. The app never accepts a role from the form.
 
-Create the only administrator on first launch, and only when no admin exists yet:
+This development account is created on first launch when no administrator exists yet:
+
+| | |
+| --- | --- |
+| Email | `admin@driftline.app` |
+| Password | `Driftline#2026` |
+| Name | Driftline Admin |
+| Country | Morocco |
+| Language | English |
+| Travel preference | City |
+| Role | admin (email already verified) |
 
 ```bash
-flutter run -d web-server --web-port 8080 --dart-define=ADMIN_EMAIL=you@example.com --dart-define=ADMIN_PASSWORD=change-this-password
+flutter run -d web-server --web-port 8080 --dart-define=ADMIN_EMAIL=admin@driftline.app --dart-define=ADMIN_PASSWORD=Driftline#2026
 ```
 
-The password must be at least 8 characters. Do not commit those values. A later launch with the same flags does nothing if an admin already exists, or if that email is already registered.
+On PowerShell, quote each flag so `#` is not treated as a comment:
+
+```powershell
+flutter run -d web-server --web-port 8080 "--dart-define=ADMIN_EMAIL=admin@driftline.app" "--dart-define=ADMIN_PASSWORD=Driftline#2026"
+```
+
+Reload http://localhost:8080, then sign in with that email and password. The middle tab opens the admin dashboard. The account is stored in that browser's local SQLite, so each browser creates it once on first load of this build.
+
+A later launch with the same flags does nothing if an admin already exists, or if that email is already registered. The password is passed at run time and is not hardcoded in Dart.
 
 ## What is real in this build
 
