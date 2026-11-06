@@ -9,7 +9,16 @@ import 'package:image_picker/image_picker.dart';
 import 'theme.dart';
 
 const int _maxUploadBytes = 8 * 1024 * 1024;
-const String kDefaultPhoto = '#F3D392';
+const String kDefaultPhoto = '#EC8B10';
+
+const List<String> kProfileColors = <String>[
+  '#1B1C1E',
+  '#B2A4A1',
+  '#EC8B10',
+  '#EB4315',
+  '#253D5B',
+  '#192532',
+];
 
 bool isStoredPhoto(String raw) => raw.startsWith('data:image/jpeg;base64,');
 
@@ -129,11 +138,16 @@ class _CropPhotoPageState extends State<CropPhotoPage> {
       backgroundColor: kInk,
       appBar: AppBar(
         backgroundColor: kInk,
-        foregroundColor: Colors.white,
+        foregroundColor: kPaper,
         elevation: 0,
         title: const Text(
           'Crop photo',
-          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700),
+          style: TextStyle(
+            fontFamily: kDisplay,
+            fontVariations: kReading,
+            fontSize: 22,
+            letterSpacing: 0.6,
+          ),
         ),
       ),
       body: Column(
@@ -148,7 +162,7 @@ class _CropPhotoPageState extends State<CropPhotoPage> {
               maskColor: const Color(0xB3000000),
               onCropped: _onCropped,
               progressIndicator: const Center(
-                child: CircularProgressIndicator(color: Colors.white),
+                child: CircularProgressIndicator(color: kPaper),
               ),
             ),
           ),
@@ -174,7 +188,7 @@ class _CropPhotoPageState extends State<CropPhotoPage> {
                   child: Text(
                     _cropping ? 'Cropping' : 'Use photo',
                     style: const TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: kFont,
                       fontWeight: FontWeight.w700,
                       fontSize: 16,
                     ),
@@ -208,7 +222,7 @@ class ProfileAvatar extends StatelessWidget {
     final Uint8List? bytes = storedPhotoBytes(photo);
     final Color background = _fallbackColor(photo);
     final Color foreground = background.computeLuminance() < 0.45
-        ? Colors.white
+        ? kPaper
         : kInk;
     final Widget face = CircleAvatar(
       radius: radius,
@@ -220,9 +234,10 @@ class ProfileAvatar extends StatelessWidget {
               initials.isEmpty ? '?' : initials,
               style: TextStyle(
                 color: foreground,
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: radius * 0.68,
+                fontFamily: kDisplay,
+                fontVariations: kReading,
+                fontSize: radius * 0.72,
+                letterSpacing: 0.4,
               ),
             ),
     );

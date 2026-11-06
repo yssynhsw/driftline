@@ -28,6 +28,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   final TextEditingController _query = TextEditingController();
   String _sort = 'newest';
   int _page = 0;
+  int _tripPage = 0;
   bool _loading = true;
   String? _error;
 
@@ -64,6 +65,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
         _audit = audit;
         _loading = false;
         _error = null;
+        _page = _clampPage(_page, _pageCount);
+        _tripPage = _clampPage(_tripPage, _tripPageCount);
       });
     } catch (error) {
       if (!mounted) {
@@ -171,7 +174,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               onPressed: () => Navigator.of(context).pop(true),
               child: const Text(
                 'Delete',
-                style: TextStyle(color: Color(0xFFB3261E)),
+                style: TextStyle(color: kEmber),
               ),
             ),
           ],
@@ -186,16 +189,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
       return const Center(child: CircularProgressIndicator(color: kInk));
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(22, 12, 22, 128),
+      padding: const EdgeInsets.fromLTRB(22, 12, 48, 128),
       children: <Widget>[
         const Text(
           'Dashboard',
           style: TextStyle(
+            fontFamily: kFont,
+            fontVariations: kReading,
             color: kInk,
-            fontSize: 34,
-            height: 1.05,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.8,
+            fontSize: 32,
+            height: 1.15,
+            fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(height: 6),
@@ -205,7 +209,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ),
         if (_error != null) ...<Widget>[
           const SizedBox(height: 12),
-          Text(_error!, style: const TextStyle(color: Color(0xFFB3261E))),
+          Text(_error!, style: const TextStyle(color: kEmber)),
         ],
         const SizedBox(height: 18),
         Row(
@@ -224,7 +228,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 label: 'Trips',
                 value: '${_trips.length}',
                 color: kInk,
-                ink: Colors.white,
+                ink: kPaper,
               ),
             ),
           ],
@@ -234,7 +238,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
           children: <Widget>[
             Expanded(
               child: _Stat(
-                label: 'Verified',
+                label: 'Email',
+                icon: Icons.verified,
+                iconColor: kVerified,
                 value: '${_users.where((AppUser user) => user.emailVerified).length}',
                 color: kLilac,
                 ink: kInk,
@@ -253,13 +259,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ),
         const SizedBox(height: 8),
         Text(
-          '${_users.where((AppUser user) => !user.emailVerified).length} unverified · ${_users.where((AppUser user) => !user.active).length} suspended · $_recentCount joined in 7 days',
+          '${_users.where((AppUser user) => !user.emailVerified).length} email pending · ${_users.where((AppUser user) => !user.active).length} suspended · $_recentCount joined in 7 days',
           style: const TextStyle(color: kMute, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 22),
         _SectionTitle(
           title: 'Profiles',
-          action: null,
+          trailing: _Pager(
+            page: _clampPage(_page, _pageCount),
+            count: _pageCount,
+            onChanged: (int page) => setState(() => _page = page),
+          ),
         ),
         const SizedBox(height: 10),
         TextField(
@@ -292,59 +302,74 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 });
               },
             ),
-            const Spacer(),
-            IconButton(
-              onPressed: _page == 0 ? null : () => setState(() => _page -= 1),
-              icon: const Icon(Icons.chevron_left),
-            ),
-            Text('${_page + 1} / $_pageCount'),
-            IconButton(
-              onPressed: _page + 1 >= _pageCount
-                  ? null
-                  : () => setState(() => _page += 1),
-              icon: const Icon(Icons.chevron_right),
-            ),
           ],
         ),
         const SizedBox(height: 10),
-        for (final AppUser person in _visible)
-          _ManageCard(
-            title: person.name,
-            subtitle:
-                '${person.roleLabel} · ${person.active ? 'Active' : 'Suspended'} · ${person.emailVerified ? 'Verified' : 'Unverified'} · ${person.email}',
-            onEdit: () => _editUser(person),
-            onDelete: person.isAdmin ? null : () => _deleteUser(person),
-            onSuspend: person.isAdmin
-                ? null
-                : () => _toggleActive(person),
-            suspendLabel: person.active ? 'Suspend' : 'Restore',
-            onRecover: () => _issueReset(person),
-          ),
+        _PagedList(
+          page: _clampPage(_page, _pageCount),
+          children: _visible.isEmpty
+              ? <Widget>[
+                  Text(
+                    _query.text.trim().isEmpty
+                        ? 'No profiles yet.'
+                        : 'No profiles match that search.',
+                    style: const TextStyle(
+                      color: kMute,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ]
+              : <Widget>[
+                  for (final AppUser person in _visible)
+                    _ManageCard(
+                      title: person.name,
+                      subtitle: person.isAdmin
+                          ? 'Admin · ${person.active ? 'Active' : 'Suspended'} · ${person.email}'
+                          : '${person.active ? 'Active' : 'Suspended'} · ${person.email}',
+                      verified: person.emailVerified,
+                      onEdit: () => _editUser(person),
+                      onDelete: person.isAdmin ? null : () => _deleteUser(person),
+                      onSuspend: person.isAdmin
+                          ? null
+                          : () => _toggleActive(person),
+                      suspendLabel: person.active ? 'Suspend' : 'Restore',
+                      onRecover: () => _issueReset(person),
+                    ),
+                ],
+        ),
         const SizedBox(height: 18),
-        _SectionTitle(title: 'Trips', action: () => _editTrip()),
-        const SizedBox(height: 10),
-        if (_trips.isEmpty)
-          const Text(
-            'No trips yet. Add one for a traveller.',
-            style: TextStyle(color: kMute, fontWeight: FontWeight.w600),
-          ),
-        for (final Trip trip in _trips)
-          _ManageCard(
-            title: trip.titre,
-            subtitle:
-                '${trip.destination} · ${_owner(trip.userId)?.name ?? 'Unknown'} · ${trip.statut}',
-            onEdit: () => _editTrip(trip),
-            onDelete: () => _deleteTrip(trip),
-          ),
-        const SizedBox(height: 18),
-        const Text(
-          'Audit',
-          style: TextStyle(
-            color: kInk,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
+        _SectionTitle(
+          title: 'Trips',
+          action: () => _editTrip(),
+          trailing: _Pager(
+            page: _clampPage(_tripPage, _tripPageCount),
+            count: _tripPageCount,
+            onChanged: (int page) => setState(() => _tripPage = page),
           ),
         ),
+        const SizedBox(height: 10),
+        _PagedList(
+          page: _clampPage(_tripPage, _tripPageCount),
+          children: _visibleTrips.isEmpty
+              ? const <Widget>[
+                  Text(
+                    'No trips yet. Add one for a traveller.',
+                    style: TextStyle(color: kMute, fontWeight: FontWeight.w600),
+                  ),
+                ]
+              : <Widget>[
+                  for (final Trip trip in _visibleTrips)
+                    _ManageCard(
+                      title: trip.titre,
+                      subtitle:
+                          '${trip.destination} · ${_owner(trip.userId)?.name ?? 'Unknown'} · ${trip.statut}',
+                      onEdit: () => _editTrip(trip),
+                      onDelete: () => _deleteTrip(trip),
+                    ),
+                ],
+        ),
+        const SizedBox(height: 18),
+        const _SectionTitle(title: 'Audit', action: null),
         const SizedBox(height: 8),
         if (_audit.isEmpty)
           const Text(
@@ -373,6 +398,24 @@ class _AdminDashboardState extends State<AdminDashboard> {
     return (count + _pageSize - 1) ~/ _pageSize;
   }
 
+  int get _tripPageCount {
+    if (_trips.isEmpty) {
+      return 1;
+    }
+    return (_trips.length + _pageSize - 1) ~/ _pageSize;
+  }
+
+  int _clampPage(int page, int count) {
+    final int last = count <= 1 ? 0 : count - 1;
+    if (page < 0) {
+      return 0;
+    }
+    if (page > last) {
+      return last;
+    }
+    return page;
+  }
+
   List<AppUser> get _filtered {
     final String query = _query.text.trim().toLowerCase();
     final List<AppUser> matched = query.isEmpty
@@ -393,12 +436,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   List<AppUser> get _visible {
     final List<AppUser> matched = _filtered;
-    final int start = _page * _pageSize;
+    final int start = _clampPage(_page, _pageCount) * _pageSize;
     if (start >= matched.length) {
       return const <AppUser>[];
     }
     final int end = start + _pageSize;
     return matched.sublist(start, end > matched.length ? matched.length : end);
+  }
+
+  List<Trip> get _visibleTrips {
+    final int start = _clampPage(_tripPage, _tripPageCount) * _pageSize;
+    if (start >= _trips.length) {
+      return const <Trip>[];
+    }
+    final int end = start + _pageSize;
+    return _trips.sublist(start, end > _trips.length ? _trips.length : end);
   }
 
   Future<void> _issueReset(AppUser person) async {
@@ -410,7 +462,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       return;
     }
     final String message = result.error ??
-        'No email was sent. Local database code for ${person.email}: ${result.code}. It expires in 10 minutes.';
+        'A reset code was emailed to ${person.email}. It expires in 10 minutes.';
     await showDialog<void>(
       context: context,
       useRootNavigator: false,
@@ -448,11 +500,144 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 }
 
+class _Pager extends StatelessWidget {
+  const _Pager({
+    required this.page,
+    required this.count,
+    required this.onChanged,
+  });
+
+  final int page;
+  final int count;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _PagerButton(
+          icon: Icons.chevron_left,
+          enabled: page > 0,
+          onTap: () => onChanged(page - 1),
+        ),
+        const SizedBox(width: 4),
+        SizedBox(
+          width: 52,
+          child: Text(
+            '${page + 1} / $count',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(width: 4),
+        _PagerButton(
+          icon: Icons.chevron_right,
+          enabled: page + 1 < count,
+          onTap: () => onChanged(page + 1),
+        ),
+      ],
+    );
+  }
+}
+
+class _PagerButton extends StatelessWidget {
+  const _PagerButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: Material(
+        color: enabled ? kInk : kNavy.withValues(alpha: 0.35),
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          child: Icon(icon, size: 20, color: kPaper),
+        ),
+      ),
+    );
+  }
+}
+
+class _PagedList extends StatefulWidget {
+  const _PagedList({required this.page, required this.children});
+
+  final int page;
+  final List<Widget> children;
+
+  @override
+  State<_PagedList> createState() => _PagedListState();
+}
+
+class _PagedListState extends State<_PagedList> {
+  bool _forward = true;
+
+  @override
+  void didUpdateWidget(covariant _PagedList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.page != oldWidget.page) {
+      _forward = widget.page > oldWidget.page;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      layoutBuilder: (Widget? current, List<Widget> previous) {
+        return Stack(
+          alignment: Alignment.topCenter,
+          clipBehavior: Clip.hardEdge,
+          children: <Widget>[
+            ...previous,
+            ?current,
+          ],
+        );
+      },
+      transitionBuilder: (Widget child, Animation<double> animation) {
+        final bool incoming = child.key == ValueKey<int>(widget.page);
+        final double dx = _forward ? 0.18 : -0.18;
+        final Animation<Offset> offset = Tween<Offset>(
+          begin: Offset(incoming ? dx : -dx, 0),
+          end: Offset.zero,
+        ).animate(animation);
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(position: offset, child: child),
+        );
+      },
+      child: Column(
+        key: ValueKey<int>(widget.page),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: widget.children,
+      ),
+    );
+  }
+}
+
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, required this.action});
+  const _SectionTitle({
+    required this.title,
+    this.action,
+    this.trailing,
+  });
 
   final String title;
   final VoidCallback? action;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -462,12 +647,15 @@ class _SectionTitle extends StatelessWidget {
           child: Text(
             title,
             style: const TextStyle(
+              fontFamily: kFont,
+              fontVariations: kReading,
               color: kInk,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
+        ?trailing,
         if (action != null)
           TextButton(onPressed: action, child: const Text('Add')),
       ],
@@ -481,12 +669,16 @@ class _Stat extends StatelessWidget {
     required this.value,
     required this.color,
     required this.ink,
+    this.icon,
+    this.iconColor,
   });
 
   final String label;
   final String value;
   final Color color;
   final Color ink;
+  final IconData? icon;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -496,21 +688,25 @@ class _Stat extends StatelessWidget {
         gradient: _wash(color),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: color == kInk ? const Color(0x2EFFFFFF) : const Color(0xB3FFFFFF),
+          color: color == kInk ? const Color(0x2EB2A4A1) : const Color(0xB3B2A4A1),
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(label, style: TextStyle(color: ink.withValues(alpha: 0.7))),
+          icon == null
+              ? Text(label, style: TextStyle(color: ink.withValues(alpha: 0.7)))
+              : Icon(icon, color: iconColor ?? ink, size: 20),
           const SizedBox(height: 6),
           Text(
             value,
             style: TextStyle(
+              fontFamily: kFont,
+              fontVariations: kReading,
               color: ink,
               fontSize: 32,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.8,
+              height: 1.05,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -530,6 +726,7 @@ class _ManageCard extends StatelessWidget {
     this.onSuspend,
     this.suspendLabel,
     this.onRecover,
+    this.verified,
   });
 
   final String title;
@@ -539,6 +736,7 @@ class _ManageCard extends StatelessWidget {
   final VoidCallback? onSuspend;
   final String? suspendLabel;
   final VoidCallback? onRecover;
+  final bool? verified;
 
   @override
   Widget build(BuildContext context) {
@@ -546,9 +744,9 @@ class _ManageCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kPaper,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: kLine),
+        border: Border.all(color: kNavy),
       ),
       child: Row(
         children: <Widget>[
@@ -556,13 +754,25 @@ class _ManageCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: kInk,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                  ),
+                Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: kInk,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    if (verified != null) ...<Widget>[
+                      const SizedBox(width: 6),
+                      verified!
+                          ? const Icon(Icons.verified, color: kVerified, size: 16)
+                          : const UnverifiedBadge(size: 18),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -596,7 +806,7 @@ class _ManageCard extends StatelessWidget {
           if (onDelete != null)
             IconButton(
               onPressed: onDelete,
-              icon: const Icon(Icons.delete_outline, color: Color(0xFFB3261E)),
+              icon: const Icon(Icons.delete_outline, color: kEmber),
             ),
         ],
       ),
@@ -687,7 +897,8 @@ class _UserEditorState extends State<_UserEditor> {
           onChanged: (String value) => setState(() => _pays.text = value),
         ),
         _Field(label: 'Langue', controller: _langue),
-        Text('Rôle: ${widget.person.roleLabel}'),
+        if (widget.person.isAdmin)
+          Text('Rôle: ${widget.person.roleLabel}'),
       ],
     );
   }
@@ -924,13 +1135,13 @@ class _EditorFrame extends StatelessWidget {
               ...children,
               if (error != null) ...<Widget>[
                 const SizedBox(height: 8),
-                Text(error!, style: const TextStyle(color: Color(0xFFB3261E))),
+                Text(error!, style: const TextStyle(color: kEmber)),
               ],
               const SizedBox(height: 14),
               FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: kInk,
-                  foregroundColor: Colors.white,
+                  foregroundColor: kPaper,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),

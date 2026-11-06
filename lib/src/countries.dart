@@ -222,7 +222,7 @@ class CountryField extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: kFont,
             color: kMute,
             fontSize: 12,
             fontWeight: FontWeight.w600,
@@ -252,7 +252,7 @@ class CountryField extends StatelessWidget {
                   child: Text(
                     value.isEmpty ? 'Choose a country' : value,
                     style: const TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: kFont,
                       color: kInk,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -313,7 +313,7 @@ class _CountrySheetState extends State<_CountrySheet> {
               controller: _query,
               autofocus: true,
               cursorColor: kInk,
-              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600),
+              style: const TextStyle(fontFamily: kFont, fontWeight: FontWeight.w600),
               decoration: const InputDecoration(
                 hintText: 'Search countries',
                 prefixIcon: Icon(Icons.search, color: kMute),
@@ -330,7 +330,7 @@ class _CountrySheetState extends State<_CountrySheet> {
                     title: Text(
                       name,
                       style: const TextStyle(
-                        fontFamily: 'Outfit',
+                        fontFamily: kFont,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

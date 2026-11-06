@@ -5,7 +5,6 @@ class AppUser {
     required this.nom,
     required this.prenom,
     required this.email,
-    required this.firebaseUid,
     required this.photoProfil,
     required this.pays,
     required this.langue,
@@ -26,7 +25,6 @@ class AppUser {
   final String nom;
   final String prenom;
   final String email;
-  final String firebaseUid;
   final String photoProfil;
   final String pays;
   final String langue;
@@ -104,13 +102,22 @@ String _firstGlyph(String value) {
 /// Outcome of an auth call.
 ///
 /// `error == null` and [user] set means success, except password reset
-/// requests, which succeed with [code] and no user. `unverified`, `2fa`, and
+/// requests, which succeed with no user. `unverified`, `2fa`, and
 /// `deactivated` are machine-readable states. Any other [error] is a message
-/// for the screen. [code] carries a local inbox or reset code when one exists.
+/// for the screen. [mailed] means the provider accepted the message. [notice]
+/// explains a delivery problem. [code] is not shown in the app.
 class AuthResult {
-  const AuthResult({this.user, this.error, this.code});
+  const AuthResult({
+    this.user,
+    this.error,
+    this.code,
+    this.notice,
+    this.mailed = false,
+  });
 
   final AppUser? user;
   final String? error;
   final String? code;
+  final String? notice;
+  final bool mailed;
 }

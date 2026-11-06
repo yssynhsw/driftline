@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
 import 'src/auth_page.dart';
+import 'src/relay_host.dart';
 import 'src/shell.dart';
 import 'src/store.dart';
 import 'src/theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ensureRelay();
   runApp(const DriftlineApp());
 }
 

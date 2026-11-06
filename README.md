@@ -45,22 +45,39 @@ A later launch with the same flags does nothing if an admin already exists, or i
 ## What is real in this build
 
 - Registration, login, logout, remembered session, and password visibility.
-- Email and reset codes are hashed, expire in 10 minutes, allow 5 attempts, and resend after 60 seconds. The screen shows the code because no mail provider is configured. That is a local database code, not a delivered email.
-- Phone verification uses the same local code rules. No SMS is sent.
+- Email and reset codes are sent with Resend. They are hashed, expire in 10 minutes, allow 5 attempts, and can be sent again after 60 seconds. The code is only in the email.
+- Phone verification uses the same expiry and attempt rules. Twilio sends the code. The code is only in the text.
 - Five failed logins lock the account for 15 minutes. Registration is limited to 5 attempts per 10 minutes in the running process.
 - Profile edit, password change (current password required), and account deletion (current password required). The administrator account cannot be deleted or suspended from the app.
-- Admin dashboard: counts, search, sort, pages of 6, suspend, restore, delete, trip management, and an audit log. Reset codes issued by an admin are shown once and written to the audit log.
+- Admin dashboard: counts, search, sort, pages of 6, suspend, restore, delete, trip management, and an audit log. An admin reset code is emailed. The dialog shows the code only when Resend rejects it.
 
 ## Not configured
 
-These buttons and checks fail closed. They do not create accounts and they do not pretend to succeed.
+Google sign-in, SMS, and CAPTCHA stay closed until their own keys exist. They do not create accounts and they do not pretend to succeed. Email is sent when the local relay is running. The app does not use Firebase.
 
 | Service | Status | What you need |
 | --- | --- | --- |
-| Google, Apple, Facebook, Microsoft | Pending | Official OAuth / OpenID client IDs for each provider. Apple also needs an Apple Developer account and the Sign in with Apple capability. |
-| Email delivery | Pending | SMTP or a provider such as Resend, plus a server that sends the code. The app must stop returning the plaintext code once mail works. |
-| SMS OTP | Pending | An SMS provider and a server that sends the code. |
-| CAPTCHA | Not added | A server-verified provider (for example Cloudflare Turnstile or reCAPTCHA). A client-only checkbox is not used. Rate limits and lockout are the current abuse controls. |
+| Google | Pending | A Google OAuth client ID. Driftline does not use Firebase. |
+| Email delivery | Resend | Start the local relay before signup or password reset. The API key stays in that process and is not stored in the app or the repo. |
+| SMS OTP | Twilio | The relay uses `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`. A trial account must verify a phone number and claim a sending number before texts can leave. Set that number as `TWILIO_FROM`. Profile numbers need a country code, such as `+212612345678`. Trial accounts can text only numbers verified in the Twilio console. |
+| CAPTCHA | Google reCAPTCHA v3 | Sign-in and sign-up request a token in the background. The site key is public. `RECAPTCHA_SECRET` stays in `tool/local.env`. |
 | Profile photo | Gallery, camera, and crop | The cropped JPEG is stored in SQLite. Camera and photo-library permission prompts appear on iOS and Android. |
+
+## Email
+
+The Flutter app calls `http://127.0.0.1:8787`. That process holds the Resend key and sends the message.
+
+```powershell
+$env:RESEND_API_KEY = "re_your_key"
+$env:TWILIO_ACCOUNT_SID = "ACyour_sid"
+$env:TWILIO_AUTH_TOKEN = "your_auth_token"
+$env:TWILIO_FROM = "+15551234567"
+$env:RECAPTCHA_SECRET = "your_recaptcha_secret"
+dart run tool/mail_server.dart
+```
+
+Leave that window open on its own. It is a separate process from `flutter run`. You can also put the same values in `tool/local.env`, which stays off git. The relay reads that file when the variables are not already set. The default sender is `Driftline <onboarding@resend.dev>` until `RESEND_FROM` is a verified domain. Signup shows Resend's error when a message is rejected. It does not show a code on screen.
+
+`TWILIO_FROM` is the sending number. This trial still needs a verified phone in the Twilio console before that number can be claimed. Profile phones need a country code, such as `+212612345678`.
 
 Session id is stored in shared preferences on this development build. Production should move that token to platform secure storage and keep authorization on a server, not in the Flutter binary.

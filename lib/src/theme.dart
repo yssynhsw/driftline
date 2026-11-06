@@ -1,31 +1,45 @@
 import 'package:flutter/material.dart';
 
-const Color kCanvas = Color(0xFFE4E4E6);
-const Color kBg = Color(0xFFF7F7F5);
-const Color kInk = Color(0xFF121212);
-const Color kMint = Color(0xFFD7EFE6);
-const Color kGold = Color(0xFFF3D392);
-const Color kLilac = Color(0xFFE8DDF6);
-const Color kMute = Color(0xFF8D8D92);
-const Color kGreen = Color(0xFF1F9D62);
-const Color kLine = Color(0xFFE8E8EA);
+const String kFont = 'Fraunces';
+const String kDisplay = kFont;
+const List<FontVariation> kReading = <FontVariation>[
+  FontVariation('opsz', 32),
+];
+
+const Color kInk = Color(0xFF1B1C1E);
+const Color kPaper = Color(0xFFB2A4A1);
+const Color kNavy = Color(0xFF192532);
+const Color kBlue = Color(0xFF253D5B);
+const Color kOrange = Color(0xFFEC8B10);
+const Color kEmber = Color(0xFFEB4315);
+const Color kVerified = Color(0xFF1F8A4C);
+
+const Color kCanvas = kNavy;
+const Color kBg = kPaper;
+const Color kMint = kBlue;
+const Color kGold = kOrange;
+const Color kLilac = kEmber;
+const Color kMute = kBlue;
+const Color kGreen = kOrange;
+const Color kLine = kNavy;
 
 const LinearGradient kBlackGradient = LinearGradient(
   begin: Alignment.topCenter,
   end: Alignment.bottomCenter,
-  colors: <Color>[Color(0xFF323236), Color(0xFF17171A), Color(0xFF0C0C0E)],
+  colors: <Color>[kBlue, kNavy, kInk],
 );
 
 const LinearGradient kMintGradient = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
-  colors: <Color>[Color(0xFFF7FCFB), Color(0xFFD7EFE6), Color(0xFFC3E3D6)],
+  colors: <Color>[kPaper, kPaper, kBlue],
+  stops: <double>[0, 0.72, 1],
 );
 
 const LinearGradient kGoldGradient = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
-  colors: <Color>[Color(0xFFFFF6E4), Color(0xFFF3D392), Color(0xFFE7C27A)],
+  colors: <Color>[kPaper, kOrange, kEmber],
 );
 
 const BorderRadius kCardRadius = BorderRadius.all(Radius.circular(32));
@@ -34,7 +48,7 @@ BoxDecoration blackCardDecoration({BorderRadius radius = kCardRadius}) {
   return BoxDecoration(
     gradient: kBlackGradient,
     borderRadius: radius,
-    border: Border.all(color: const Color(0x2EFFFFFF)),
+    border: Border.all(color: const Color(0x2EB2A4A1)),
     boxShadow: const <BoxShadow>[
       BoxShadow(
         color: Color(0x1A000000),
@@ -48,14 +62,14 @@ BoxDecoration blackCardDecoration({BorderRadius radius = kCardRadius}) {
 const LinearGradient kAppWash = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
-  colors: <Color>[Color(0xFFF7F7F5), Color(0xFFE5F6F0), Color(0xFFFFF4E4)],
-  stops: <double>[0, 0.55, 1],
+  colors: <Color>[kPaper, kPaper, kOrange],
+  stops: <double>[0, 0.78, 1],
 );
 
 const LinearGradient kLilacGradient = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
-  colors: <Color>[Color(0xFFF8F4FC), Color(0xFFE8DDF6), Color(0xFFD8CBED)],
+  colors: <Color>[kPaper, kEmber, kOrange],
 );
 
 LinearGradient gradientFor(Color color) {
@@ -75,7 +89,7 @@ LinearGradient gradientFor(Color color) {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: <Color>[
-      Color.lerp(Colors.white, color, 0.35)!,
+      Color.lerp(kPaper, color, 0.35)!,
       color,
       Color.lerp(kInk, color, 0.08)!,
     ],
@@ -83,22 +97,33 @@ LinearGradient gradientFor(Color color) {
 }
 
 ThemeData driftTheme() {
-  const TextStyle outfit = TextStyle(fontFamily: 'Outfit');
+  const TextStyle reading = TextStyle(
+    fontFamily: kFont,
+    fontVariations: kReading,
+    height: 1.35,
+    color: kInk,
+  );
+  const TextStyle display = TextStyle(
+    fontFamily: kFont,
+    fontVariations: kReading,
+    height: 1.15,
+    color: kInk,
+  );
   final ThemeData base = ThemeData(
     useMaterial3: true,
-    fontFamily: 'Outfit',
+    fontFamily: kFont,
     colorScheme: const ColorScheme(
       brightness: Brightness.light,
       primary: kInk,
-      onPrimary: Colors.white,
+      onPrimary: kPaper,
       secondary: kMint,
-      onSecondary: kInk,
+      onSecondary: kPaper,
       tertiary: kGold,
       onTertiary: kInk,
       surface: kBg,
       onSurface: kInk,
-      error: Color(0xFFB3261E),
-      onError: Colors.white,
+      error: kEmber,
+      onError: kPaper,
     ),
     scaffoldBackgroundColor: kBg,
     pageTransitionsTheme: const PageTransitionsTheme(
@@ -112,40 +137,73 @@ ThemeData driftTheme() {
       },
     ),
   );
+  final TextTheme applied = base.textTheme.apply(
+    fontFamily: kFont,
+    bodyColor: kInk,
+    displayColor: kInk,
+  );
   return base.copyWith(
-    textTheme: base.textTheme.apply(fontFamily: 'Outfit', bodyColor: kInk, displayColor: kInk),
-    primaryTextTheme: base.primaryTextTheme.apply(fontFamily: 'Outfit'),
-    appBarTheme: const AppBarTheme(
+    textTheme: applied.copyWith(
+      displayLarge: display.copyWith(fontSize: 48),
+      displayMedium: display.copyWith(fontSize: 40),
+      displaySmall: display.copyWith(fontSize: 32),
+      headlineMedium: display.copyWith(fontSize: 28),
+      headlineSmall: display.copyWith(fontSize: 24),
+      titleLarge: display.copyWith(fontSize: 22, letterSpacing: 0.6),
+      bodyLarge: reading.copyWith(fontSize: 16),
+      bodyMedium: reading.copyWith(fontSize: 15),
+      bodySmall: reading.copyWith(fontSize: 13),
+      labelLarge: reading.copyWith(fontSize: 15, fontWeight: FontWeight.w600),
+    ),
+    primaryTextTheme: base.primaryTextTheme.apply(fontFamily: kFont),
+    appBarTheme: AppBarTheme(
       backgroundColor: kBg,
       foregroundColor: kInk,
       elevation: 0,
-      titleTextStyle: TextStyle(
-        fontFamily: 'Outfit',
-        color: kInk,
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-      ),
+      titleTextStyle: display.copyWith(fontSize: 26, letterSpacing: 0.8),
     ),
-    snackBarTheme: const SnackBarThemeData(
+    snackBarTheme: SnackBarThemeData(
       backgroundColor: kInk,
-      contentTextStyle: TextStyle(fontFamily: 'Outfit', color: Colors.white),
+      contentTextStyle: reading.copyWith(color: kPaper, fontSize: 15),
       behavior: SnackBarBehavior.floating,
     ),
-    dialogTheme: const DialogThemeData(
+    dialogTheme: DialogThemeData(
       backgroundColor: kBg,
-      titleTextStyle: TextStyle(
-        fontFamily: 'Outfit',
-        color: kInk,
-        fontSize: 20,
-        fontWeight: FontWeight.w700,
-      ),
-      contentTextStyle: outfit,
+      titleTextStyle: display.copyWith(fontSize: 26),
+      contentTextStyle: reading.copyWith(fontSize: 15),
     ),
-    inputDecorationTheme: const InputDecorationTheme(
-      labelStyle: outfit,
-      hintStyle: TextStyle(fontFamily: 'Outfit', color: kMute),
+    inputDecorationTheme: InputDecorationTheme(
+      labelStyle: reading.copyWith(fontSize: 14, color: kMute),
+      hintStyle: reading.copyWith(color: kMute, fontSize: 15),
     ),
   );
+}
+
+class UnverifiedBadge extends StatelessWidget {
+  const UnverifiedBadge({super.key, this.size = 22});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Not confirmed',
+      child: Container(
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: kEmber,
+          borderRadius: BorderRadius.circular(size * 0.32),
+        ),
+        child: Icon(
+          Icons.priority_high_rounded,
+          color: kPaper,
+          size: size * 0.72,
+        ),
+      ),
+    );
+  }
 }
 
 class DriftlineMark extends StatelessWidget {
@@ -156,11 +214,14 @@ class DriftlineMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Widget logo = Image.asset(
-      'assets/brand/driftline_logo.png',
-      width: size,
-      height: size,
-      filterQuality: FilterQuality.high,
+    final Widget logo = ClipOval(
+      child: Image.asset(
+        'assets/brand/driftline_logo.png',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.high,
+      ),
     );
     if (!showName) {
       return logo;
@@ -173,7 +234,8 @@ class DriftlineMark extends StatelessWidget {
         const Text(
           'DRIFTLINE',
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: kDisplay,
+            fontVariations: kReading,
             color: kInk,
             fontSize: 13,
             fontWeight: FontWeight.w700,
@@ -237,7 +299,7 @@ class DockOutlinePainter extends CustomPainter {
     final Paint paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
-      ..color = const Color(0x3DFFFFFF);
+      ..color = const Color(0x3DB2A4A1);
     canvas.drawPath(DockClipper.pathFor(size), paint);
   }
 
@@ -281,11 +343,7 @@ class Stage extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: <Color>[
-                Color(0xFFE8E8EB),
-                Color(0xFFD7EFE6),
-                Color(0xFFF3D392),
-              ],
+              colors: <Color>[kInk, kNavy, kBlue],
               stops: <double>[0, 0.62, 1],
             ),
           ),

@@ -2,20 +2,22 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'db_factory_io.dart' if (dart.library.html) 'db_factory_web.dart';
+import 'mail.dart';
 import 'trip.dart';
 import 'user.dart';
 
 export 'trip.dart';
 export 'user.dart';
 
-/// Local SQLite accounts. Social providers stay closed until OAuth
-/// clients are configured. Verification codes are issued by this
-/// database because no mail or SMS provider is connected.
+/// Local SQLite accounts. Google sign-in stays closed until an OAuth
+/// client is configured. Email codes go out through Resend, and phone
+/// codes through Twilio, both via the local relay.
 class UserStore {
   static final UserStore instance = UserStore();
 
@@ -33,11 +35,12 @@ class UserStore {
     final String dbPath = join(await getDatabasesPath(), 'driftline.db');
     _db = await openDatabase(
       dbPath,
-      version: 4,
+      version: 6,
       onCreate: (Database db, int _) async {
         await _createUsers(db);
         await _createTrips(db);
         await _createAudit(db);
+        await _createGuide(db);
       },
       onUpgrade: (Database db, int oldVersion, int _) async {
         if (oldVersion < 2) {
@@ -48,6 +51,12 @@ class UserStore {
         }
         if (oldVersion < 4) {
           await _migrateV4(db);
+        }
+        if (oldVersion < 5) {
+          await _migrateV5(db);
+        }
+        if (oldVersion < 6) {
+          await _createGuide(db);
         }
       },
     );
@@ -77,6 +86,7 @@ class UserStore {
     required String preferences,
     required String photoProfil,
     required String phone,
+    required String captchaToken,
   }) async {
     final cleanNom = nom.trim();
     final cleanPrenom = prenom.trim();
@@ -104,6 +114,12 @@ class UserStore {
     if (!_validPhone(phone)) {
       return const AuthResult(error: 'Enter a valid phone number.');
     }
+    if (kIsWeb) {
+      final String? captchaError = await OutboundMail.verifyCaptcha(captchaToken);
+      if (captchaError != null) {
+        return AuthResult(error: captchaError);
+      }
+    }
     final String? limited = _registrationLimited();
     if (limited != null) {
       return AuthResult(error: limited);
@@ -123,7 +139,6 @@ class UserStore {
         'prenom': cleanPrenom,
         'email': cleanEmail,
         'password_hash': _hash(cleanEmail, password),
-        'firebase_uid': 'local_${DateTime.now().microsecondsSinceEpoch}',
         'photo_profil': _storedPhoto(photoProfil),
         'pays': cleanPays,
         'langue': cleanLangue,
@@ -152,7 +167,24 @@ class UserStore {
       }
       rethrow;
     }
-    return AuthResult(error: 'unverified', code: code);
+    final ({bool mailed, String? notice}) delivered = await _deliverCode(
+      email: cleanEmail,
+      code: code,
+      purpose: 'verify',
+    );
+    if (!delivered.mailed) {
+      await db.update(
+        'users',
+        <String, Object?>{'last_email_code_at': null},
+        where: 'email = ?',
+        whereArgs: <Object?>[cleanEmail],
+      );
+      return AuthResult(
+        error: 'unverified',
+        notice: delivered.notice ?? 'The verification email could not be sent.',
+      );
+    }
+    return const AuthResult(error: 'unverified', mailed: true);
   }
 
   Future<AuthResult> signIn({
@@ -160,7 +192,17 @@ class UserStore {
     required String password,
     required bool remember,
     String? pin,
+    String? captchaToken,
+    bool checkCaptcha = false,
   }) async {
+    if (checkCaptcha) {
+      final String? captchaError = await OutboundMail.verifyCaptcha(
+        captchaToken ?? '',
+      );
+      if (captchaError != null) {
+        return AuthResult(error: captchaError);
+      }
+    }
     final db = await _database();
     final String cleanEmail = email.trim();
     final row = await _rowByEmail(db, cleanEmail);
@@ -209,9 +251,12 @@ class UserStore {
   }
 
   Future<AuthResult> signInWithProvider(String provider) async {
-    return AuthResult(
+    if (provider != 'Google') {
+      return const AuthResult(error: 'Only Google sign-in is available.');
+    }
+    return const AuthResult(
       error:
-          '$provider sign-in is not configured. Add the provider OAuth client before this button can authenticate.',
+          'Google sign-in needs a Google OAuth client ID. Driftline does not use Firebase.',
     );
   }
 
@@ -260,7 +305,23 @@ class UserStore {
       where: 'id_user = ?',
       whereArgs: [row['id_user']],
     );
-    return AuthResult(code: issued);
+    final ({bool mailed, String? notice}) delivered = await _deliverCode(
+      email: storedEmail,
+      code: issued,
+        purpose: 'verify',
+    );
+    if (delivered.mailed) {
+      return const AuthResult(mailed: true);
+    }
+    await db.update(
+      'users',
+      <String, Object?>{'last_email_code_at': null},
+      where: 'id_user = ?',
+      whereArgs: <Object?>[row['id_user']],
+    );
+    return AuthResult(
+      error: delivered.notice ?? 'The verification email could not be sent.',
+    );
   }
 
   Future<AuthResult> requestPhoneCode(int id) async {
@@ -284,13 +345,11 @@ class UserStore {
     if (wait != null) {
       return AuthResult(error: wait);
     }
-    final String issued = _sixDigits();
-    final String storedEmail = row['email'] as String;
     final DateTime now = DateTime.now();
     await db.update(
       'users',
       <String, Object?>{
-        'phone_code': _hash(storedEmail, issued),
+        'phone_code': 'twilio',
         'phone_expires': now.add(const Duration(minutes: 10)).toIso8601String(),
         'phone_attempts': 0,
         'last_phone_code_at': now.toIso8601String(),
@@ -298,7 +357,19 @@ class UserStore {
       where: 'id_user = ?',
       whereArgs: <Object?>[id],
     );
-    return AuthResult(code: issued);
+    final ({bool mailed, String? notice}) delivered = await _deliverSms(
+      phone: row['phone'] as String,
+    );
+    if (delivered.mailed) {
+      return const AuthResult(mailed: true);
+    }
+    await db.update(
+      'users',
+      <String, Object?>{'last_phone_code_at': null},
+      where: 'id_user = ?',
+      whereArgs: <Object?>[id],
+    );
+    return AuthResult(error: delivered.notice ?? 'The text could not be sent.');
   }
 
   Future<AuthResult> verifyPhone({
@@ -324,16 +395,32 @@ class UserStore {
     if (until != null && DateTime.now().isAfter(until)) {
       return const AuthResult(error: 'That code has expired.');
     }
-    final String storedEmail = row['email'] as String;
     final String? hash = row['phone_code'] as String?;
-    if (hash == null || hash != _hash(storedEmail, code.trim())) {
-      await db.update(
-        'users',
-        <String, Object?>{'phone_attempts': attempts + 1},
-        where: 'id_user = ?',
-        whereArgs: <Object?>[id],
+    if (hash == 'twilio') {
+      final String? rejected = await OutboundMail.checkSms(
+        to: (row['phone'] as String?) ?? '',
+        code: code.trim(),
       );
-      return const AuthResult(error: 'Invalid or expired code.');
+      if (rejected != null) {
+        await db.update(
+          'users',
+          <String, Object?>{'phone_attempts': attempts + 1},
+          where: 'id_user = ?',
+          whereArgs: <Object?>[id],
+        );
+        return AuthResult(error: rejected);
+      }
+    } else {
+      final String storedEmail = row['email'] as String;
+      if (hash == null || hash != _hash(storedEmail, code.trim())) {
+        await db.update(
+          'users',
+          <String, Object?>{'phone_attempts': attempts + 1},
+          where: 'id_user = ?',
+          whereArgs: <Object?>[id],
+        );
+        return const AuthResult(error: 'Invalid or expired code.');
+      }
     }
     await db.update(
       'users',
@@ -382,15 +469,36 @@ class UserStore {
       where: 'id_user = ?',
       whereArgs: <Object?>[targetId],
     );
-    await _audit(actorId, 'issue_reset', targetId, 'local reset code issued');
-    return AuthResult(code: issued);
+    final ({bool mailed, String? notice}) delivered = await _deliverCode(
+      email: storedEmail,
+      code: issued,
+      purpose: 'reset',
+    );
+    await _audit(
+      actorId,
+      'issue_reset',
+      targetId,
+      delivered.mailed ? 'reset code emailed' : 'reset email failed',
+    );
+    if (!delivered.mailed) {
+      await db.update(
+        'users',
+        <String, Object?>{'last_email_code_at': null},
+        where: 'id_user = ?',
+        whereArgs: <Object?>[targetId],
+      );
+      return AuthResult(
+        error: delivered.notice ?? 'The reset email could not be sent.',
+      );
+    }
+    return const AuthResult(mailed: true);
   }
 
   Future<AuthResult> requestReset(String email) async {
     final db = await _database();
     final row = await _rowByEmail(db, email.trim());
     if (row == null) {
-      return const AuthResult();
+      return const AuthResult(mailed: true);
     }
     final String? wait = _cooldownMessage(row['last_email_code_at'] as String?);
     if (wait != null) {
@@ -410,7 +518,23 @@ class UserStore {
       where: 'id_user = ?',
       whereArgs: [row['id_user']],
     );
-    return AuthResult(code: issued);
+    final ({bool mailed, String? notice}) delivered = await _deliverCode(
+      email: storedEmail,
+      code: issued,
+        purpose: 'reset',
+    );
+    if (delivered.mailed) {
+      return const AuthResult(mailed: true);
+    }
+    await db.update(
+      'users',
+      <String, Object?>{'last_email_code_at': null},
+      where: 'id_user = ?',
+      whereArgs: <Object?>[row['id_user']],
+    );
+    return AuthResult(
+      error: delivered.notice ?? 'The reset email could not be sent.',
+    );
   }
 
   Future<AuthResult> resetPassword({
@@ -610,6 +734,7 @@ class UserStore {
       return 'Current password is wrong.';
     }
     await db.delete('trips', where: 'user_id = ?', whereArgs: [id]);
+    await db.delete('guide_messages', where: 'user_id = ?', whereArgs: [id]);
     await db.delete('users', where: 'id_user = ?', whereArgs: [id]);
     await logout();
     return null;
@@ -632,6 +757,7 @@ class UserStore {
     }
     final db = await _database();
     await db.delete('trips', where: 'user_id = ?', whereArgs: [targetId]);
+    await db.delete('guide_messages', where: 'user_id = ?', whereArgs: [targetId]);
     await db.delete('users', where: 'id_user = ?', whereArgs: [targetId]);
     await _audit(actorId, 'delete_user', targetId, 'profile deleted');
     return null;
@@ -679,6 +805,38 @@ class UserStore {
     return rows.map((Map<String, Object?> row) {
       return '${row['created_at']}  ${row['action']}  #${row['target_id']}';
     }).toList();
+  }
+
+  Future<List<({String role, String text})>> guideMessages(int userId) async {
+    final db = await _database();
+    final List<Map<String, Object?>> rows = await db.query(
+      'guide_messages',
+      where: 'user_id = ?',
+      whereArgs: <Object?>[userId],
+      orderBy: 'id ASC',
+    );
+    return rows
+        .map(
+          (Map<String, Object?> row) => (
+            role: row['role'] as String,
+            text: row['body'] as String,
+          ),
+        )
+        .toList();
+  }
+
+  Future<void> addGuideMessage({
+    required int userId,
+    required String role,
+    required String text,
+  }) async {
+    final db = await _database();
+    await db.insert('guide_messages', <String, Object?>{
+      'user_id': userId,
+      'role': role,
+      'body': text,
+      'created_at': DateTime.now().toIso8601String(),
+    });
   }
 
   Future<List<Trip>> listTrips() async {
@@ -838,6 +996,26 @@ class UserStore {
   String _sixDigits() {
     final value = Random.secure().nextInt(1000000);
     return value.toString().padLeft(6, '0');
+  }
+
+  Future<({bool mailed, String? notice})> _deliverCode({
+    required String email,
+    required String code,
+    required String purpose,
+  }) async {
+    final String? notice = await OutboundMail.sendCode(
+      to: email,
+      code: code,
+      purpose: purpose,
+    );
+    return (mailed: notice == null, notice: notice);
+  }
+
+  Future<({bool mailed, String? notice})> _deliverSms({
+    required String phone,
+  }) async {
+    final String? notice = await OutboundMail.sendSms(to: phone);
+    return (mailed: notice == null, notice: notice);
   }
 
   final Map<String, int> _unknownFails = <String, int>{};
@@ -1016,6 +1194,31 @@ CREATE TABLE IF NOT EXISTS audit_log (
 ''');
   }
 
+  Future<void> _createGuide(Database db) {
+    return db.execute('''
+CREATE TABLE IF NOT EXISTS guide_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  role TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL
+)
+''');
+  }
+
+  Future<void> _migrateV5(Database db) async {
+    final List<Map<String, Object?>> info = await db.rawQuery(
+      'PRAGMA table_info(users)',
+    );
+    final bool hasFirebase = info.any(
+      (Map<String, Object?> column) => column['name'] == 'firebase_uid',
+    );
+    if (!hasFirebase) {
+      return;
+    }
+    await db.execute('ALTER TABLE users DROP COLUMN firebase_uid');
+  }
+
   Future<void> _migrateV4(Database db) async {
     const List<String> statements = <String>[
       'ALTER TABLE users ADD COLUMN phone_code TEXT',
@@ -1115,7 +1318,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
       'prenom': 'Driftline',
       'email': email.trim(),
       'password_hash': _hash(email.trim(), password),
-      'firebase_uid': 'admin_${now.microsecondsSinceEpoch}',
       'photo_profil': '#121212',
       'pays': 'Morocco',
       'langue': 'English',
@@ -1144,7 +1346,6 @@ CREATE TABLE users (
   prenom TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  firebase_uid TEXT NOT NULL,
   photo_profil TEXT NOT NULL,
   pays TEXT NOT NULL,
   langue TEXT NOT NULL,
@@ -1229,7 +1430,6 @@ CREATE TABLE trips (
       nom: row['nom'] as String,
       prenom: row['prenom'] as String,
       email: row['email'] as String,
-      firebaseUid: row['firebase_uid'] as String,
       photoProfil: row['photo_profil'] as String,
       pays: row['pays'] as String,
       langue: row['langue'] as String,

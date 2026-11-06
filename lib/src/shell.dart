@@ -4,17 +4,10 @@ import 'package:image_picker/image_picker.dart';
 
 import 'admin_page.dart';
 import 'countries.dart';
+import 'guide.dart';
 import 'photo.dart';
 import 'store.dart';
 import 'theme.dart';
-
-const List<String> _swatches = <String>[
-  '#121212',
-  '#D7EFE6',
-  '#F3D392',
-  '#E8DDF6',
-  '#1F9D62',
-];
 
 const List<String> _preferenceCatalog = <String>[
   'Beach',
@@ -28,32 +21,32 @@ const List<String> _preferenceCatalog = <String>[
 ];
 
 const TextStyle _display = TextStyle(
-  fontFamily: 'Outfit',
+  fontFamily: kFont,
+  fontVariations: kReading,
   color: kInk,
   fontSize: 32,
-  height: 1.05,
+  height: 1.15,
   fontWeight: FontWeight.w700,
-  letterSpacing: -0.8,
 );
 
 const TextStyle _quiet = TextStyle(
-  fontFamily: 'Outfit',
+  fontFamily: kFont,
+  fontVariations: kReading,
   color: kMute,
-  fontSize: 14.5,
-  height: 1.3,
-  fontWeight: FontWeight.w500,
+  fontSize: 15,
+  height: 1.35,
 );
 
 const TextStyle _huge = TextStyle(
-  fontFamily: 'Outfit',
+  fontFamily: kFont,
+  fontVariations: kReading,
   color: kInk,
   fontSize: 48,
-  height: 1,
+  height: 1.05,
   fontWeight: FontWeight.w700,
-  letterSpacing: -1.6,
 );
 
-const EdgeInsets _pagePadding = EdgeInsets.fromLTRB(22, 8, 22, 128);
+const EdgeInsets _pagePadding = EdgeInsets.fromLTRB(22, 8, 48, 128);
 
 String _greeting(DateTime now) {
   final int hour = now.hour;
@@ -190,13 +183,22 @@ class _Badge {
 
 List<_Badge> _badgesFor(AppUser user) {
   final List<_Badge> items = <_Badge>[];
-  if (user.emailVerified) {
+  if (!user.emailVerified) {
     items.add(
       const _Badge(
-        'Verified',
-        'Email confirmed',
-        Icons.verified_outlined,
-        kMint,
+        'Email',
+        '',
+        Icons.priority_high_rounded,
+        kEmber,
+      ),
+    );
+  } else {
+    items.add(
+      const _Badge(
+        'Email',
+        'Confirmed',
+        Icons.verified,
+        kVerified,
       ),
     );
   }
@@ -427,7 +429,7 @@ class _DeckState extends State<_Deck> {
               child: Text(
                 action,
                 style: TextStyle(
-                  color: danger ? const Color(0xFFB3261E) : kInk,
+                  color: danger ? kEmber : kInk,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -471,7 +473,7 @@ class _DeckState extends State<_Deck> {
     final _FactorChoice? choice = await showDialog<_FactorChoice>(
       context: context,
       useRootNavigator: false,
-      barrierColor: const Color(0x73121212),
+      barrierColor: const Color(0x731B1C1E),
       builder: (BuildContext context) {
         return _SecurityDialog(enabled: session.user.twoFactor);
       },
@@ -563,10 +565,12 @@ class _DeckState extends State<_Deck> {
     if (!mounted) {
       return;
     }
-    if (issued.error != null || issued.code == null) {
-      _message(issued.error ?? 'Could not issue a code.');
+    if (issued.error != null || !issued.mailed) {
+      _message(issued.error ?? issued.notice ?? 'The text could not be sent.');
       return;
     }
+    const String prompt =
+        'We sent a 6-digit code by SMS. It expires in 10 minutes.';
     final TextEditingController code = TextEditingController();
     final String? entered = await showDialog<String>(
       context: context,
@@ -578,9 +582,7 @@ class _DeckState extends State<_Deck> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text(
-                'No SMS provider is configured. The local database issued ${issued.code}. It expires in 10 minutes.',
-              ),
+              Text(prompt),
               TextField(
                 controller: code,
                 keyboardType: TextInputType.number,
@@ -794,6 +796,18 @@ class _DeckState extends State<_Deck> {
                   ),
                 ),
               ),
+            Align(
+              alignment: const Alignment(1, -0.22),
+              child: GuideHandle(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (BuildContext context) => TripGuide(user: user),
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
         ),
         ),
@@ -848,8 +862,10 @@ class _HomePage extends StatelessWidget {
     final DateTime now = DateTime.now();
     final List<_Badge> badges = _badgesFor(user);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(22, 8, 22, 18),
+      padding: const EdgeInsets.fromLTRB(22, 8, 48, 18),
       children: <Widget>[
+        const WeatherToday(),
+        const SizedBox(height: 16),
         Row(
           children: <Widget>[
             Expanded(
@@ -896,9 +912,8 @@ class _HomePage extends StatelessWidget {
               child: _Pill(
                 label: 'Log a trip',
                 icon: Icons.flight_takeoff,
-                background: Colors.white,
-                foreground: kInk,
-                borderColor: kLine,
+                background: kInk,
+                foreground: kPaper,
                 onTap: onLog,
               ),
             ),
@@ -907,9 +922,8 @@ class _HomePage extends StatelessWidget {
               child: _Pill(
                 label: 'Profile',
                 icon: Icons.person_outline,
-                background: Colors.white,
+                background: kOrange,
                 foreground: kInk,
-                borderColor: kLine,
                 onTap: onProfile,
               ),
             ),
@@ -951,9 +965,11 @@ class _LevelPill extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
+          color: kInk,
+          fontFamily: kDisplay,
+          fontVariations: kReading,
+          fontSize: 14,
+          letterSpacing: 0.4,
         ),
       ),
     );
@@ -978,7 +994,7 @@ class _WeekCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: kMintGradient,
         borderRadius: kCardRadius,
-        border: Border.all(color: const Color(0xB3FFFFFF)),
+        border: Border.all(color: kNavy),
         boxShadow: const <BoxShadow>[
           BoxShadow(
             color: Color(0x12000000),
@@ -999,14 +1015,14 @@ class _WeekCard extends StatelessWidget {
                     color: kInk,
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
+                    letterSpacing: 0.4,
                   ),
                 ),
               ),
               _MintChip(
                 label: '7 days',
                 selected: !month,
-                idle: const Color(0xB3FFFFFF),
+                idle: const Color(0xB3B2A4A1),
                 onTap: () => onMonth(false),
               ),
               const SizedBox(width: 6),
@@ -1064,7 +1080,7 @@ class _MintChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? Colors.white : idle,
+      color: selected ? kPaper : idle,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
@@ -1114,11 +1130,12 @@ class _BadgeDock extends StatelessWidget {
                 child: Text(
                   'Badges',
                   style: TextStyle(
-                    fontFamily: 'Outfit',
-                    color: Colors.white,
-                    fontSize: 18,
+                    fontFamily: kDisplay,
+                    fontVariations: kReading,
+                    color: kPaper,
+                    fontSize: 22,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: -0.3,
+                    letterSpacing: 0.4,
                   ),
                 ),
               ),
@@ -1129,8 +1146,9 @@ class _BadgeDock extends StatelessWidget {
                   child: Text(
                     'No badges yet',
                     style: TextStyle(
-                      fontFamily: 'Outfit',
-                      color: Color(0xFFB5B5BA),
+                      fontFamily: kFont,
+                      fontVariations: kReading,
+                      color: kPaper,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -1180,7 +1198,7 @@ class _BadgeRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: last
             ? null
-            : const Border(bottom: BorderSide(color: Color(0xFF2C2C30))),
+            : const Border(bottom: BorderSide(color: kBlue)),
       ),
       child: Row(
         children: <Widget>[
@@ -1191,7 +1209,15 @@ class _BadgeRow extends StatelessWidget {
               color: badge.tint,
               shape: BoxShape.circle,
             ),
-            child: Icon(badge.icon, color: kInk, size: 20),
+            child: Icon(
+              badge.icon,
+              color: badge.tint == kBlue ||
+                      badge.tint == kVerified ||
+                      badge.tint == kEmber
+                  ? kPaper
+                  : kInk,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1201,7 +1227,7 @@ class _BadgeRow extends StatelessWidget {
                 Text(
                   badge.title,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: kPaper,
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
                   ),
@@ -1210,7 +1236,7 @@ class _BadgeRow extends StatelessWidget {
                 Text(
                   badge.detail,
                   style: const TextStyle(
-                    color: Color(0xFFB5B5BA),
+                    color: kPaper,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -1218,7 +1244,7 @@ class _BadgeRow extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.check_rounded, color: kMint, size: 20),
+          const Icon(Icons.check_rounded, color: kOrange, size: 20),
         ],
       ),
     );
@@ -1245,17 +1271,17 @@ class _TravelersPage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         const Padding(
-          padding: EdgeInsets.fromLTRB(22, 8, 22, 0),
+          padding: EdgeInsets.fromLTRB(22, 8, 48, 0),
           child: Text('Travelers', style: _display),
         ),
         const SizedBox(height: 6),
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 22),
+          padding: EdgeInsets.fromLTRB(22, 0, 48, 0),
           child: Text('Find someone to travel with.', style: _quiet),
         ),
         const SizedBox(height: 14),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 22),
+          padding: const EdgeInsets.fromLTRB(22, 0, 48, 0),
           child: _SearchField(controller: controller),
         ),
         const SizedBox(height: 16),
@@ -1274,7 +1300,7 @@ class _TravelersPage extends StatelessWidget {
       );
     }
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(22, 0, 22, 128),
+      padding: const EdgeInsets.fromLTRB(22, 0, 48, 128),
       itemCount: people.length,
       separatorBuilder: (BuildContext context, int index) {
         return const SizedBox(height: 10);
@@ -1303,14 +1329,14 @@ class _SearchField extends StatelessWidget {
         hintStyle: const TextStyle(color: kMute, fontWeight: FontWeight.w500),
         prefixIcon: const Icon(Icons.search, color: kMute),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: kPaper,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 14,
         ),
         border: _outline(kLine),
         enabledBorder: _outline(kLine),
-        focusedBorder: _outline(kInk),
+        focusedBorder: _outline(kOrange),
       ),
     );
   }
@@ -1331,7 +1357,7 @@ class _EmptyTravelers extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 24, 22, 128),
+      padding: const EdgeInsets.fromLTRB(22, 24, 48, 128),
       child: Column(
         children: <Widget>[
           const Icon(Icons.travel_explore, color: kMute, size: 42),
@@ -1360,7 +1386,7 @@ class _TravelerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: kPaper,
       borderRadius: BorderRadius.circular(22),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -1369,7 +1395,7 @@ class _TravelerCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: kLine),
+            border: Border.all(color: kNavy),
           ),
           child: Row(
             children: <Widget>[
@@ -1464,15 +1490,24 @@ class _TravelerSheet extends StatelessWidget {
             _Detail(label: 'Phone', value: person.phone),
             _Detail(
               label: 'Phone status',
-              value: person.phoneVerified ? 'Verified' : 'Unverified',
+              value: '',
+              trailing: person.phoneVerified
+                  ? const Icon(Icons.verified, color: kVerified, size: 18)
+                  : const UnverifiedBadge(),
             ),
             _Detail(label: 'Bio', value: person.bio),
-            _Detail(label: 'Email', value: person.email),
+            _Detail(
+              label: 'Email',
+              value: person.email,
+              trailing: person.emailVerified
+                  ? const Icon(Icons.verified, color: kVerified, size: 18)
+                  : const UnverifiedBadge(size: 20),
+            ),
             _Detail(label: 'Langue', value: person.langue),
             _Detail(label: 'Preferences', value: preferences),
-            _Detail(label: 'Rôle', value: person.roleLabel),
+            if (person.isAdmin)
+              _Detail(label: 'Rôle', value: person.roleLabel),
             _Detail(label: 'Date', value: _formatDate(person.dateCreation)),
-            _Detail(label: 'Firebase uid', value: person.firebaseUid),
           ],
         ),
       ),
@@ -1481,10 +1516,11 @@ class _TravelerSheet extends StatelessWidget {
 }
 
 class _Detail extends StatelessWidget {
-  const _Detail({required this.label, required this.value});
+  const _Detail({required this.label, required this.value, this.trailing});
 
   final String label;
   final String value;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -1502,13 +1538,23 @@ class _Detail extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 3),
-          Text(
-            value.isEmpty ? '—' : value,
-            style: const TextStyle(
-              color: kInk,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            children: <Widget>[
+              Flexible(
+                child: Text(
+                  value.isEmpty && trailing != null ? '' : (value.isEmpty ? '—' : value),
+                  style: const TextStyle(
+                    color: kInk,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (trailing != null) ...<Widget>[
+                const SizedBox(width: 6),
+                trailing!,
+              ],
+            ],
           ),
         ],
       ),
@@ -1578,7 +1624,7 @@ class _ProfilePage extends StatelessWidget {
                 label: 'Log trip',
                 icon: Icons.add,
                 background: kInk,
-                foreground: Colors.white,
+                foreground: kPaper,
                 onTap: onLog,
               ),
             ),
@@ -1587,7 +1633,7 @@ class _ProfilePage extends StatelessWidget {
               child: _Pill(
                 label: 'Security',
                 icon: Icons.shield_outlined,
-                background: Colors.white,
+                background: kPaper,
                 foreground: kInk,
                 borderColor: kLine,
                 onTap: onSecurity,
@@ -1647,7 +1693,7 @@ class _ProfilePage extends StatelessWidget {
               ? const Text(
                   'None yet',
                   style: TextStyle(
-                    color: Color(0xFFB5B5BA),
+                    color: kPaper,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1685,31 +1731,32 @@ class _ProfilePage extends StatelessWidget {
                 label: 'Langue',
                 value: user.langue,
               ),
-              _AccountRow(
-                icon: Icons.badge_outlined,
-                label: 'Rôle',
-                value: user.roleLabel,
-              ),
+              if (user.isAdmin)
+                _AccountRow(
+                  icon: Icons.badge_outlined,
+                  label: 'Rôle',
+                  value: user.roleLabel,
+                ),
               _AccountRow(
                 icon: Icons.mail_outline,
                 label: 'Email',
-                value: '${user.email} · ${user.emailVerified ? 'Verified' : 'Unverified'}',
+                value: user.email,
+                trailing: user.emailVerified
+                    ? const Icon(Icons.verified, color: kVerified, size: 18)
+                    : const UnverifiedBadge(size: 20),
               ),
               _AccountRow(
                 icon: Icons.phone_outlined,
                 label: 'Phone',
-                value:
-                    '${user.phone.isEmpty ? '—' : user.phone} · ${user.phoneVerified ? 'Verified' : 'Unverified'}',
+                value: user.phone.isEmpty ? '—' : user.phone,
+                trailing: user.phoneVerified
+                    ? const Icon(Icons.verified, color: kVerified, size: 18)
+                    : const UnverifiedBadge(size: 20),
               ),
               _AccountRow(
                 icon: Icons.notes_outlined,
                 label: 'Bio',
                 value: user.bio.isEmpty ? '—' : user.bio,
-              ),
-              _AccountRow(
-                icon: Icons.fingerprint,
-                label: 'Firebase UID',
-                value: user.firebaseUid,
               ),
               _AccountRow(
                 icon: Icons.calendar_today_outlined,
@@ -1729,7 +1776,7 @@ class _ProfilePage extends StatelessWidget {
         const SizedBox(height: 18),
         _Pill(
           label: 'Change password',
-          background: Colors.white,
+          background: kPaper,
           foreground: kInk,
           borderColor: kLine,
           onTap: onPassword,
@@ -1737,7 +1784,7 @@ class _ProfilePage extends StatelessWidget {
         const SizedBox(height: 8),
         _Pill(
           label: user.phoneVerified ? 'Phone verified' : 'Verify phone',
-          background: user.phoneVerified ? kMint : Colors.white,
+          background: user.phoneVerified ? kMint : kPaper,
           foreground: kInk,
           borderColor: kLine,
           onTap: user.phoneVerified ? () {} : onPhone,
@@ -1745,7 +1792,7 @@ class _ProfilePage extends StatelessWidget {
         const SizedBox(height: 8),
         _Pill(
           label: 'Deactivate',
-          background: Colors.white,
+          background: kPaper,
           foreground: kInk,
           borderColor: kLine,
           onTap: onDeactivate,
@@ -1756,7 +1803,7 @@ class _ProfilePage extends StatelessWidget {
           child: const Text(
             'Delete account',
             style: TextStyle(
-              color: Color(0xFFB3261E),
+              color: kEmber,
               fontWeight: FontWeight.w700,
               fontSize: 15,
             ),
@@ -1766,7 +1813,7 @@ class _ProfilePage extends StatelessWidget {
         _Pill(
           label: 'Log out',
           background: kInk,
-          foreground: Colors.white,
+          foreground: kPaper,
           onTap: onLogout,
         ),
       ],
@@ -1823,10 +1870,10 @@ class _BlackPanel extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              color: Colors.white,
+              color: kPaper,
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              letterSpacing: -0.3,
+              letterSpacing: 0.4,
             ),
           ),
           const SizedBox(height: 14),
@@ -1842,12 +1889,14 @@ class _AccountRow extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.trailing,
     this.last = false,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final Widget? trailing;
   final bool last;
 
   @override
@@ -1857,7 +1906,7 @@ class _AccountRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: last
             ? null
-            : const Border(bottom: BorderSide(color: Color(0xFF2C2C30))),
+            : const Border(bottom: BorderSide(color: kBlue)),
       ),
       child: Row(
         children: <Widget>[
@@ -1865,17 +1914,17 @@ class _AccountRow extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: const BoxDecoration(
-              color: Color(0xFF2A2A2E),
+              color: kNavy,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: Colors.white, size: 18),
+            child: Icon(icon, color: kPaper, size: 18),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               label,
               style: const TextStyle(
-                color: Color(0xFFB5B5BA),
+                color: kPaper,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
@@ -1887,12 +1936,16 @@ class _AccountRow extends StatelessWidget {
               value.isEmpty ? '—' : value,
               textAlign: TextAlign.end,
               style: const TextStyle(
-                color: Colors.white,
+                color: kPaper,
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
               ),
             ),
           ),
+          if (trailing != null) ...<Widget>[
+            const SizedBox(width: 6),
+            trailing!,
+          ],
         ],
       ),
     );
@@ -2233,20 +2286,19 @@ class _EditProfileState extends State<_EditProfile> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Row(
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
                     children: <Widget>[
-                      for (final String hex in _swatches)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 10),
-                          child: _ColorDot(
-                            hex: hex,
-                            selected: _hexKey(hex) == _hexKey(_photo),
-                            onTap: () {
-                              setState(() {
-                                _photo = hex;
-                              });
-                            },
-                          ),
+                      for (final String hex in kProfileColors)
+                        _ColorDot(
+                          hex: hex,
+                          selected: _hexKey(hex) == _hexKey(_photo),
+                          onTap: () {
+                            setState(() {
+                              _photo = hex;
+                            });
+                          },
                         ),
                     ],
                   ),
@@ -2258,7 +2310,7 @@ class _EditProfileState extends State<_EditProfile> {
               child: _Pill(
                 label: _saving || _photoBusy ? 'Saving' : 'Save',
                 background: kInk,
-                foreground: Colors.white,
+                foreground: kPaper,
                 onTap: _saving || _photoBusy ? null : _save,
               ),
             ),
@@ -2295,7 +2347,7 @@ class _LabeledField extends StatelessWidget {
           style: const TextStyle(color: kInk, fontWeight: FontWeight.w600),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white,
+            fillColor: kPaper,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 14,
@@ -2331,7 +2383,7 @@ class _ToggleChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? kInk : Colors.white,
+      color: selected ? kInk : kPaper,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
@@ -2345,7 +2397,7 @@ class _ToggleChip extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? Colors.white : kInk,
+              color: selected ? kPaper : kInk,
               fontWeight: FontWeight.w700,
               fontSize: 13,
             ),
@@ -2370,7 +2422,7 @@ class _PhotoAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: kPaper,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -2596,7 +2648,7 @@ class _SecurityDialogState extends State<_SecurityDialog> {
               value: _on,
               activeThumbColor: kBg,
               activeTrackColor: kInk,
-              inactiveThumbColor: Colors.white,
+              inactiveThumbColor: kPaper,
               inactiveTrackColor: kLine,
               onChanged: (bool value) {
                 setState(() {
@@ -2634,7 +2686,7 @@ class _SecurityDialogState extends State<_SecurityDialog> {
                 letterSpacing: 0,
               ),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: kPaper,
               border: _pinBorder(kLine),
               enabledBorder: _pinBorder(kLine),
               focusedBorder: _pinBorder(kInk),
@@ -2655,7 +2707,7 @@ class _SecurityDialogState extends State<_SecurityDialog> {
             _Pill(
               label: actionLabel,
               background: kInk,
-              foreground: Colors.white,
+              foreground: kPaper,
               onTap: () => _submit(messengerContext),
             ),
           ],
@@ -2697,7 +2749,7 @@ class _RoundButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: kPaper,
       shape: const CircleBorder(side: BorderSide(color: kLine)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -2818,7 +2870,7 @@ class _BottomNav extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: kBlackGradient,
         borderRadius: BorderRadius.circular(40),
-        border: Border.all(color: const Color(0x3DFFFFFF)),
+        border: Border.all(color: const Color(0x3DB2A4A1)),
         boxShadow: const <BoxShadow>[
           BoxShadow(
             color: Color(0x33000000),
@@ -2864,10 +2916,10 @@ class _NavButton extends StatelessWidget {
               width: selected ? 46 : 40,
               height: selected ? 46 : 40,
               decoration: BoxDecoration(
-                color: selected ? Colors.white : Colors.transparent,
+                color: selected ? kPaper : Colors.transparent,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 22, color: selected ? kInk : kMute),
+              child: Icon(icon, size: 22, color: selected ? kInk : kPaper),
             ),
           ),
         ),

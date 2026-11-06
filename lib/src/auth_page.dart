@@ -1,13 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'captcha.dart';
 import 'countries.dart';
 import 'photo.dart';
 import 'store.dart';
 import 'theme.dart';
 
-const Color _danger = Color(0xFFD92D20);
+const Color _danger = kEmber;
 
 const List<String> _languages = <String>[
   'English',
@@ -22,14 +24,6 @@ const List<String> _tastes = <String>[
   'Mountains',
   'Food',
   'Culture',
-];
-
-const List<String> _photos = <String>[
-  '#121212',
-  '#D7EFE6',
-  '#F3D392',
-  '#E8DDF6',
-  '#1F9D62',
 ];
 
 class AuthPage extends StatefulWidget {
@@ -57,13 +51,12 @@ class _AuthPageState extends State<AuthPage> {
   bool _remember = false;
   bool _busy = false;
   bool _hideSecret = true;
-  bool _inboxOpen = false;
   String? _pending;
   String? _error;
   String? _errorAt;
   String? _notice;
-  String? _inboxCode;
-  String? _resetCode;
+  bool _resetSent = false;
+  String _captchaToken = '';
   String _pays = 'Morocco';
   String _langue = 'English';
   String _photo = '#F3D392';
@@ -103,8 +96,12 @@ class _AuthPageState extends State<AuthPage> {
       _errorAt = null;
       _notice = null;
       if (step != _Step.forgot) {
-        _resetCode = null;
+        _resetSent = false;
         _newPassword.clear();
+        _code.clear();
+      }
+      if (step == _Step.signIn || step == _Step.signUp) {
+        _captchaToken = '';
       }
     });
   }
@@ -161,14 +158,8 @@ class _AuthPageState extends State<AuthPage> {
       if (error == 'unverified') {
         _step = _Step.verify;
         _code.clear();
-        final String? code = result.code;
-        if (code != null && code.isNotEmpty) {
-          _inboxCode = code;
-          _inboxOpen = true;
-        } else {
-          _inboxOpen = false;
-        }
-        _error = null;
+        _error = result.notice;
+        _errorAt = result.notice == null ? null : 'verify';
         return;
       }
       if (error == 'deactivated') {
@@ -180,6 +171,27 @@ class _AuthPageState extends State<AuthPage> {
     });
   }
 
+  Future<bool> _prepareCaptcha(String anchor, String action) async {
+    if (!kIsWeb) {
+      return true;
+    }
+    try {
+      _captchaToken = await requestCaptchaToken(action);
+    } catch (_) {
+      if (mounted) {
+        _fail(anchor, 'CAPTCHA could not be completed.');
+      }
+      return false;
+    }
+    if (_captchaToken.isEmpty) {
+      if (mounted) {
+        _fail(anchor, 'CAPTCHA could not be completed.');
+      }
+      return false;
+    }
+    return true;
+  }
+
   Future<void> _submitSignIn() async {
     final String email = _email.text.trim();
     if (!email.contains('@') || _password.text.isEmpty) {
@@ -187,11 +199,16 @@ class _AuthPageState extends State<AuthPage> {
       return;
     }
     await _run('signIn', () async {
+      if (!await _prepareCaptcha('signIn', 'signin')) {
+        return;
+      }
       final AuthResult result = await UserStore.instance.signIn(
         email: _email.text.trim(),
         password: _password.text,
         remember: _remember,
         pin: null,
+        captchaToken: _captchaToken,
+        checkCaptcha: kIsWeb,
       );
       if (!mounted) {
         return;
@@ -242,6 +259,9 @@ class _AuthPageState extends State<AuthPage> {
       return;
     }
     await _run('register', () async {
+      if (!await _prepareCaptcha('register', 'signup')) {
+        return;
+      }
       final AuthResult result = await UserStore.instance.register(
         nom: _nom.text.trim(),
         prenom: _prenom.text.trim(),
@@ -252,6 +272,7 @@ class _AuthPageState extends State<AuthPage> {
         preferences: _prefs.join(', '),
         photoProfil: _photo,
         phone: _phone.text.trim(),
+        captchaToken: _captchaToken,
       );
       if (!mounted) {
         return;
@@ -260,9 +281,8 @@ class _AuthPageState extends State<AuthPage> {
         setState(() {
           _step = _Step.verify;
           _code.clear();
-          _inboxCode = result.code;
-          _inboxOpen = result.code != null && result.code!.isNotEmpty;
-          _error = null;
+          _error = result.notice;
+          _errorAt = result.notice == null ? null : 'verify';
         });
         return;
       }
@@ -315,13 +335,12 @@ class _AuthPageState extends State<AuthPage> {
       if (!mounted) {
         return;
       }
-      if (result.code == null || result.code!.isEmpty) {
-        setState(() => _error = result.error ?? 'Could not issue a code.');
+      if (result.error != null) {
+        setState(() => _error = result.error);
         return;
       }
       setState(() {
-        _inboxCode = result.code;
-        _inboxOpen = true;
+        _notice = 'A new code was sent to your email.';
         _error = null;
       });
     });
@@ -339,21 +358,18 @@ class _AuthPageState extends State<AuthPage> {
         setState(() => _error = result.error);
         return;
       }
-      final String? code = result.code;
-      if (code == null || code.isEmpty) {
-        _fail('reset', 'No code in the local inbox.');
-        return;
-      }
       setState(() {
-        _resetCode = code;
+        _resetSent = true;
+        _code.clear();
         _error = null;
       });
     });
   }
 
   Future<void> _submitNewPassword() async {
-    final String? code = _resetCode;
-    if (code == null) {
+    final String code = _code.text.trim();
+    if (code.length != 6) {
+      _fail('reset', 'Enter the 6-digit code.');
       return;
     }
     await _run('reset', () async {
@@ -371,7 +387,8 @@ class _AuthPageState extends State<AuthPage> {
       }
       setState(() {
         _step = _Step.signIn;
-        _resetCode = null;
+        _resetSent = false;
+        _code.clear();
         _newPassword.clear();
         _password.clear();
         _notice = 'Password updated. Sign in to continue.';
@@ -582,35 +599,12 @@ class _AuthPageState extends State<AuthPage> {
         ),
         _errorUnder('signIn'),
         const SizedBox(height: 12),
-        const Text(
-          'Social sign-in',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: kMute,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            for (final String provider in <String>[
-              'Google',
-              'Apple',
-              'Facebook',
-              'Microsoft',
-            ])
-              _Pill(
-                label: provider,
-                background: kBg,
-                foreground: kInk,
-                border: const BorderSide(color: kLine),
-                onTap: _busy ? null : () => _pendingProvider(provider),
-              ),
-          ],
+        _Pill(
+          label: 'Continue with Google',
+          background: kBg,
+          foreground: kInk,
+          border: const BorderSide(color: kLine),
+          onTap: _busy ? null : () => _pendingProvider('Google'),
         ),
         const SizedBox(height: 16),
         Center(
@@ -772,16 +766,16 @@ class _AuthPageState extends State<AuthPage> {
           ],
         ),
         const SizedBox(height: 10),
-        Row(
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
           children: <Widget>[
-            for (final String color in _photos) ...<Widget>[
+            for (final String color in kProfileColors)
               _PhotoDot(
                 color: color,
                 selected: _photo == color,
                 onTap: _busy ? null : () => setState(() => _photo = color),
               ),
-              const SizedBox(width: 10),
-            ],
           ],
         ),
         const SizedBox(height: 18),
@@ -805,21 +799,16 @@ class _AuthPageState extends State<AuthPage> {
 
   Widget _verify() {
     final String email = _email.text.trim();
-    final String subtitle = email.isEmpty
-        ? 'No email provider is configured. Enter the code issued by the local database.'
-        : 'Enter the 6-digit code for $email.';
-    final String? inbox = _inboxCode;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _top(back: true),
-        _heading('Check inbox', subtitle),
+        _heading(
+          'Check inbox',
+          'Enter the 6-digit code sent to $email. It expires in 10 minutes.',
+        ),
         const SizedBox(height: 22),
-        if (_inboxOpen && inbox != null && inbox.isNotEmpty) ...<Widget>[
-          Center(child: _InboxPill(inbox)),
-          const SizedBox(height: 16),
-        ],
         _Panel(
           color: kMint,
           child: _plainField(
@@ -855,7 +844,6 @@ class _AuthPageState extends State<AuthPage> {
   }
 
   Widget _forgot() {
-    final String? code = _resetCode;
     final String email = _email.text.trim();
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -864,12 +852,12 @@ class _AuthPageState extends State<AuthPage> {
         _top(back: true),
         _heading(
           'Forgot password',
-          code == null
-              ? 'No email provider is configured. A reset code is issued by the local database when the account exists.'
-              : 'Choose a new password for $email.',
+          !_resetSent
+              ? 'We email a reset code when that account exists.'
+              : 'Enter the code sent to $email and choose a new password.',
         ),
         const SizedBox(height: 22),
-        if (code == null) ...<Widget>[
+        if (!_resetSent) ...<Widget>[
           _Panel(
             color: kMint,
             child: _plainField(
@@ -893,14 +881,27 @@ class _AuthPageState extends State<AuthPage> {
           ),
           _errorUnder('reset'),
         ] else ...<Widget>[
-          Center(child: _InboxPill(code)),
+          _Panel(
+            color: kMint,
+            child: _plainField(
+              controller: _code,
+              label: 'Code',
+              align: TextAlign.center,
+              fontSize: 32,
+              maxLength: 6,
+              keyboard: TextInputType.number,
+              formatters: <TextInputFormatter>[
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           _Panel(
             color: kMint,
             child: _plainField(
               controller: _newPassword,
               label: 'New password',
-              hint: 'At least 6 characters',
+              hint: 'At least 8 characters',
               secret: true,
               obscure: _hideSecret,
               onToggle: _toggleSecret,
@@ -939,7 +940,7 @@ class _AuthPageState extends State<AuthPage> {
             controller: _pin,
             label: 'PIN',
             color: kBg,
-            labelColor: const Color(0xB3F7F7F5),
+            labelColor: const Color(0xB3B2A4A1),
             align: TextAlign.center,
             fontSize: 32,
             maxLength: 4,
@@ -1066,11 +1067,12 @@ class _AuthPageState extends State<AuthPage> {
         Text(
           title,
           style: const TextStyle(
+            fontFamily: kDisplay,
+            fontVariations: kReading,
             color: kInk,
-            fontSize: 34,
-            height: 1.05,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.8,
+            fontSize: 36,
+            height: 1,
+            letterSpacing: 0.8,
           ),
         ),
         const SizedBox(height: 8),
@@ -1293,46 +1295,6 @@ class _GoldPill extends StatelessWidget {
   }
 }
 
-class _InboxPill extends StatelessWidget {
-  const _InboxPill(this.code);
-
-  final String code;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: kLilac,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const Text(
-            'Local inbox',
-            style: TextStyle(
-              color: kInk,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            code,
-            style: const TextStyle(
-              color: kInk,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _Panel extends StatelessWidget {
   const _Panel({required this.color, required this.child});
 
@@ -1349,7 +1311,7 @@ class _Panel extends StatelessWidget {
         gradient: gradientFor(color),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: color == kInk ? const Color(0x2EFFFFFF) : const Color(0xB3FFFFFF),
+          color: color == kInk ? const Color(0x2EB2A4A1) : const Color(0xB3B2A4A1),
         ),
         boxShadow: <BoxShadow>[
           BoxShadow(
@@ -1530,7 +1492,7 @@ class _PhotoChoice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: kPaper,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
