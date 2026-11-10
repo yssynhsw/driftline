@@ -840,10 +840,27 @@ class _TripEditorState extends State<_TripEditor> {
         DropdownButtonFormField<String>(
           initialValue: _type,
           decoration: const InputDecoration(labelText: 'Type de voyage'),
-          items: const <DropdownMenuItem<String>>[
-            DropdownMenuItem<String>(value: 'City', child: Text('City')),
-            DropdownMenuItem<String>(value: 'Beach', child: Text('Beach')),
-            DropdownMenuItem<String>(value: 'Adventure', child: Text('Adventure')),
+          items: <DropdownMenuItem<String>>[
+            for (final String type in <String>[
+              if (![
+                'City',
+                'Beach',
+                'Adventure',
+                'Aventure',
+                'Détente',
+                'Famille',
+                'Culturel',
+              ].contains(_type))
+                _type,
+              'City',
+              'Beach',
+              'Adventure',
+              'Aventure',
+              'Détente',
+              'Famille',
+              'Culturel',
+            ])
+              DropdownMenuItem<String>(value: type, child: Text(type)),
           ],
           onChanged: (String? value) {
             if (value != null) {
