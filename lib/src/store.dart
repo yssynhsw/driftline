@@ -8,14 +8,18 @@ import 'package:sqflite/sqflite.dart';
 
 import 'db_factory_io.dart' if (dart.library.html) 'db_factory_web.dart';
 import 'trip.dart';
+import 'trips/trip_database.dart';
 import 'user.dart';
 
 export 'trip.dart';
 export 'user.dart';
 
-/// Local SQLite accounts. Social providers stay closed until OAuth
-/// clients are configured. Verification codes are issued by this
-/// database because no mail or SMS provider is connected.
+/// Shared SQLite database service for Driftline (`driftline.db`).
+///
+/// This is the project DatabaseHelper / DatabaseService: one file, one
+/// connection. Gestion 2 reuses [connection] via [TripDatabase] — never a
+/// second database. Session id only uses SharedPreferences; trip data is
+/// persisted with sqflite insert/query/update/delete.
 class UserStore {
   static final UserStore instance = UserStore();
 
@@ -33,10 +37,15 @@ class UserStore {
     final String dbPath = join(await getDatabasesPath(), 'driftline.db');
     _db = await openDatabase(
       dbPath,
-      version: 4,
+      version: 8,
+      onConfigure: (Database db) async {
+        // Required for FOREIGN KEY enforcement with sqflite.
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: (Database db, int _) async {
         await _createUsers(db);
         await _createTrips(db);
+        await TripDatabase.createTable(db);
         await _createAudit(db);
       },
       onUpgrade: (Database db, int oldVersion, int _) async {
@@ -48,6 +57,18 @@ class UserStore {
         }
         if (oldVersion < 4) {
           await _migrateV4(db);
+        }
+        if (oldVersion < 5) {
+          await TripDatabase.createTable(db);
+        }
+        if (oldVersion < 6) {
+          await TripDatabase.migrateV6(db);
+        }
+        if (oldVersion < 7) {
+          await TripDatabase.migrateV7(db);
+        }
+        if (oldVersion < 8) {
+          await TripDatabase.migrateV8(db);
         }
       },
     );
@@ -731,7 +752,7 @@ class UserStore {
 
   Future<void> deleteTrip(int id) async {
     final db = await _database();
-    await db.delete('trips', where: 'id_trip = ?', whereArgs: [id]);
+    await TripDatabase.deleteTripCascade(db, id);
   }
 
   Future<AuthResult> reactivate({
@@ -790,6 +811,9 @@ class UserStore {
     }
     return _userFromRow(rows.first);
   }
+
+  /// Shared connection used by the trips repository. Does not open a second file.
+  Future<Database> connection() => _database();
 
   Future<Database> _database() async {
     final current = _db;
@@ -1191,27 +1215,17 @@ CREATE TABLE trips (
   type_voyage TEXT NOT NULL,
   statut TEXT NOT NULL,
   user_id INTEGER NOT NULL,
-  date_creation TEXT NOT NULL
+  date_creation TEXT NOT NULL,
+  cover_photo_url TEXT NOT NULL DEFAULT '',
+  cover_photo_credit TEXT NOT NULL DEFAULT '',
+  cover_match_level TEXT NOT NULL DEFAULT '',
+  gallery_photos_json TEXT NOT NULL DEFAULT '[]',
+  FOREIGN KEY(user_id) REFERENCES users(id_user) ON DELETE CASCADE
 )
 ''');
   }
 
-  Trip _tripFromRow(Map<String, Object?> row) {
-    return Trip(
-      id: row['id_trip'] as int,
-      titre: row['titre'] as String,
-      destination: row['destination'] as String,
-      pays: row['pays'] as String,
-      dateDepart: row['date_depart'] as String,
-      dateRetour: row['date_retour'] as String,
-      budget: (row['budget'] as num).toDouble(),
-      nombreVoyageurs: row['nombre_voyageurs'] as int,
-      typeVoyage: row['type_voyage'] as String,
-      statut: row['statut'] as String,
-      userId: row['user_id'] as int,
-      dateCreation: DateTime.parse(row['date_creation'] as String),
-    );
-  }
+  Trip _tripFromRow(Map<String, Object?> row) => Trip.fromMap(row);
 
   String _niveauFor(int trips) {
     if (trips < 3) {

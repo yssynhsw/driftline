@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Driftline (Gemini local)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define-from-file=dart_defines.json"
+      ],
+      "preLaunchTask": "sync-dart-defines"
+    },
+    {
+      "name": "Driftline (Gemini proxy — camarades)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define-from-file=dart_defines.proxy.json"
+      ],
+      "preLaunchTask": "sync-dart-defines-proxy"
+    }
+  ]
+}

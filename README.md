@@ -64,3 +64,94 @@ These buttons and checks fail closed. They do not create accounts and they do no
 | Profile photo | Gallery, camera, and crop | The cropped JPEG is stored in SQLite. Camera and photo-library permission prompts appear on iOS and Android. |
 
 Session id is stored in shared preferences on this development build. Production should move that token to platform secure storage and keep authorization on a server, not in the Flutter binary.
+
+## Gestion 2 — Voyages et itinéraires intelligents
+
+Branch: `feature/voyages-itineraires`.
+
+Includes trip CRUD, day-by-day itineraries, Gemini AI generation, Open-Meteo weather, budget analysis, schedule conflict detection, and a Spring Boot Gemini proxy for classmates.
+
+### Prerequisites
+
+- Flutter SDK (stable)
+- JDK **17** (for the Gemini proxy)
+- Windows PowerShell (scripts under `scripts/`)
+- Optional: Android SDK / emulator or a physical device on the same Wi‑Fi
+
+### Clone
+
+```bash
+git clone https://github.com/yssynhsw/driftline.git
+cd driftline
+git checkout feature/voyages-itineraires
+flutter pub get
+```
+
+### Configure secrets (never commit)
+
+```powershell
+Copy-Item .env.local.example .env.local
+# Edit .env.local — leave real values ONLY on your machine
+```
+
+| Variable | Purpose |
+| --- | --- |
+| `GEMINI_API_KEY` | Google AI Studio key (host PC / solo mode). **Never share.** |
+| `DRIFTLINE_APP_TOKEN` / `GEMINI_APP_TOKEN` | Shared app token checked by the proxy (same value on host + clients) |
+| `GEMINI_PROXY_URL` | Flutter → proxy URL (see below) |
+| `GEMINI_MODEL` | Optional model id (default in example) |
+| `PORT` | Proxy port (default `8080`) |
+
+`.env.local`, `dart_defines.json`, and `dart_defines.proxy.json` are gitignored.
+
+### Mode A — Solo (clé Gemini sur ta machine)
+
+```powershell
+.\scripts\sync_dart_defines.ps1
+.\scripts\run_dev.ps1
+```
+
+Or VS Code / Cursor: **Driftline (Gemini local)**.
+
+### Mode B — Proxy (recommandé en classe)
+
+**PC hôte** (détient `GEMINI_API_KEY`) :
+
+```powershell
+.\scripts\run_backend.ps1
+# optional helpers:
+.\scripts\share_gemini_proxy.ps1
+.\scripts\build_apk_lan.ps1
+```
+
+Health check: `http://127.0.0.1:8080/api/v1/gemini/health`
+
+**Camarade / client** (pas de clé Gemini) :
+
+1. Set in `.env.local`:
+   - Emulator Android: `GEMINI_PROXY_URL=http://10.0.2.2:8080/api/v1/gemini/generate`
+   - Phone / other PC (same Wi‑Fi): `GEMINI_PROXY_URL=http://<HOST_LAN_IP>:8080/api/v1/gemini/generate`
+   - Same `GEMINI_APP_TOKEN` as the host
+2. Run:
+
+```powershell
+.\scripts\run_dev_proxy.ps1
+```
+
+Or install the LAN APK built by the host. **Never put `GEMINI_API_KEY` in an APK.**
+
+### SQLite
+
+On first launch the app creates `driftline.db` (version 8) with users, trips, itinerary days/steps, and audit tables. No manual DB setup.
+
+### Tests
+
+```bash
+flutter analyze lib test
+flutter test
+```
+
+### More detail
+
+- Proxy API: `backend/README.md`
+- Soutenance notes: `docs/gestion2-soutenance.md`

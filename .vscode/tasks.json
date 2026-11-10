@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "sync-dart-defines",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File scripts/sync_dart_defines.ps1",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "sync-dart-defines-proxy",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File scripts/sync_dart_defines.ps1 -ProxyOnly",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
