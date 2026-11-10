@@ -8,6 +8,7 @@ import '../itinerary_day.dart';
 import '../trip_repository.dart';
 import '../widgets/destination_gallery.dart';
 import '../widgets/destination_photo.dart';
+import '../widgets/nearby_places_panel.dart';
 import '../widgets/trip_chrome.dart';
 import '../widgets/weather_panel.dart';
 import 'ai_itinerary_screen.dart';
@@ -441,6 +442,14 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
           // Avoid hanging widget tests on real network calls.
           autoload: !const bool.fromEnvironment('FLUTTER_TEST'),
         ),
+        if (!const bool.fromEnvironment('FLUTTER_TEST')) ...<Widget>[
+          const SizedBox(height: 12),
+          NearbyPlacesPanel(
+            userId: widget.userId,
+            trip: trip,
+            repository: _repository ?? widget.repository,
+          ),
+        ],
         if (_error != null) ...<Widget>[
           const SizedBox(height: 12),
           Text(
