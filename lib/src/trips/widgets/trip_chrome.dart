@@ -9,7 +9,12 @@ const List<String> kTripTypes = <String>[
   'Culturel',
 ];
 
-const List<String> kTripStatuses = <String>['Planned', 'Active', 'Done'];
+const List<String> kTripStatuses = <String>[
+  'Planned',
+  'Active',
+  'Done',
+  'Cancelled',
+];
 
 String tripStatusLabel(String status) {
   switch (status) {
@@ -19,6 +24,8 @@ String tripStatusLabel(String status) {
       return 'En cours';
     case 'Done':
       return 'Terminé';
+    case 'Cancelled':
+      return 'Annulé';
     default:
       return status;
   }
@@ -161,6 +168,7 @@ class TripStatusChip extends StatelessWidget {
     final Color background = switch (status) {
       'Active' => kGreen,
       'Done' => kLilac,
+      'Cancelled' => const Color(0xFFE8E8EA),
       _ => kGold,
     };
     return Container(

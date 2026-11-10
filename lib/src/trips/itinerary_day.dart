@@ -8,6 +8,9 @@ class ItineraryDay {
     required this.description,
     required this.estimatedBudget,
     required this.notes,
+    this.startTime = '',
+    this.endTime = '',
+    this.program = '',
   });
 
   final int id;
@@ -18,6 +21,9 @@ class ItineraryDay {
   final String description;
   final double estimatedBudget;
   final String notes;
+  final String startTime;
+  final String endTime;
+  final String program;
 
   ItineraryDay copyWith({
     int? id,
@@ -28,6 +34,9 @@ class ItineraryDay {
     String? description,
     double? estimatedBudget,
     String? notes,
+    String? startTime,
+    String? endTime,
+    String? program,
   }) {
     return ItineraryDay(
       id: id ?? this.id,
@@ -38,6 +47,9 @@ class ItineraryDay {
       description: description ?? this.description,
       estimatedBudget: estimatedBudget ?? this.estimatedBudget,
       notes: notes ?? this.notes,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      program: program ?? this.program,
     );
   }
 
@@ -51,6 +63,9 @@ class ItineraryDay {
       'description': description,
       'estimated_budget': estimatedBudget,
       'notes': notes,
+      'start_time': startTime,
+      'end_time': endTime,
+      'program': program,
     };
   }
 
@@ -64,6 +79,9 @@ class ItineraryDay {
       description: row['description'] as String,
       estimatedBudget: (row['estimated_budget'] as num).toDouble(),
       notes: row['notes'] as String,
+      startTime: (row['start_time'] as String?) ?? '',
+      endTime: (row['end_time'] as String?) ?? '',
+      program: (row['program'] as String?) ?? '',
     );
   }
 }

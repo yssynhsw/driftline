@@ -38,6 +38,9 @@ class _DayEditorPageState extends State<DayEditorPage> {
   late final TextEditingController _description;
   late final TextEditingController _budget;
   late final TextEditingController _notes;
+  late final TextEditingController _start;
+  late final TextEditingController _end;
+  late final TextEditingController _program;
   DateTime? _date;
   bool _saving = false;
   String? _error;
@@ -55,6 +58,9 @@ class _DayEditorPageState extends State<DayEditorPage> {
       text: day == null ? '' : formatBudget(day.estimatedBudget),
     );
     _notes = TextEditingController(text: day?.notes ?? '');
+    _start = TextEditingController(text: day?.startTime ?? '');
+    _end = TextEditingController(text: day?.endTime ?? '');
+    _program = TextEditingController(text: day?.program ?? '');
     _date = calendarDate(day?.date ?? widget.suggestedDate ?? '');
   }
 
@@ -65,6 +71,9 @@ class _DayEditorPageState extends State<DayEditorPage> {
     _description.dispose();
     _budget.dispose();
     _notes.dispose();
+    _start.dispose();
+    _end.dispose();
+    _program.dispose();
     super.dispose();
   }
 
@@ -94,6 +103,8 @@ class _DayEditorPageState extends State<DayEditorPage> {
     final double? budget = double.tryParse(
       _budget.text.trim().replaceAll(',', '.'),
     );
+    // Activities live in itinerary_steps and are edited on the day details
+    // screen. Saving day metadata must never wipe existing structured steps.
     final DayDraft draft = DayDraft(
       dayNumber: int.tryParse(_number.text.trim()) ?? 0,
       date: _date == null ? '' : storeCalendarDate(_date!),
@@ -101,6 +112,9 @@ class _DayEditorPageState extends State<DayEditorPage> {
       description: _description.text,
       estimatedBudget: budget ?? -1,
       notes: _notes.text,
+      startTime: _start.text.trim(),
+      endTime: _end.text.trim(),
+      program: _program.text.trim(),
     );
     setState(() {
       _saving = true;
@@ -217,6 +231,54 @@ class _DayEditorPageState extends State<DayEditorPage> {
                 border: InputBorder.none,
                 isDense: true,
                 hintText: 'Matinée dans la médina, après-midi sur la plage.',
+              ),
+            ),
+          ),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: TripFieldShell(
+                  label: 'Début (HH:MM)',
+                  child: TextField(
+                    controller: _start,
+                    style: _valueStyle,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      hintText: '09:00',
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TripFieldShell(
+                  label: 'Fin (HH:MM)',
+                  child: TextField(
+                    controller: _end,
+                    style: _valueStyle,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      hintText: '18:00',
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          TripFieldShell(
+            label: 'Résumé libre (optionnel)',
+            child: TextField(
+              controller: _program,
+              minLines: 2,
+              maxLines: 4,
+              style: _valueStyle,
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                isDense: true,
+                hintText:
+                    'Notes générales du jour. Les activités se gèrent séparément.',
               ),
             ),
           ),

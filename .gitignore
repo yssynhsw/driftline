@@ -46,3 +46,12 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/target/
+*.secrets
+dart_defines.json
+dart_defines.proxy.json
+.gemini_key

@@ -20,7 +20,11 @@ void main() {
   test('budget and traveller count must stay in range', () {
     expect(
       TripValidation.validateTrip(_draft(budget: -5)),
-      'Le budget doit être supérieur ou égal à zéro.',
+      'Le budget doit être strictement positif.',
+    );
+    expect(
+      TripValidation.validateTrip(_draft(budget: 0)),
+      'Le budget doit être strictement positif.',
     );
     expect(
       TripValidation.validateTrip(_draft(nombreVoyageurs: 0)),

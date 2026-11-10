@@ -52,6 +52,17 @@ class ItineraryDayCard extends StatelessWidget {
                     displayCalendarDate(day.date),
                     style: const TextStyle(color: kInk, fontWeight: FontWeight.w600),
                   ),
+                  if (day.startTime.trim().isNotEmpty ||
+                      day.endTime.trim().isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 4),
+                    Text(
+                      '${day.startTime.isEmpty ? '—' : day.startTime} → ${day.endTime.isEmpty ? '—' : day.endTime}',
+                      style: const TextStyle(
+                        color: kInk,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                   if (day.description.trim().isNotEmpty) ...<Widget>[
                     const SizedBox(height: 6),
                     Text(

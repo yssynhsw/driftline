@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../countries.dart';
 import '../../theme.dart';
 import '../../trip.dart';
+import '../destination_cover.dart';
 import '../trip_repository.dart';
 import '../trip_validation.dart';
+import 'destination_photo.dart';
 import 'trip_chrome.dart';
 
 class TripEditorPage extends StatefulWidget {
@@ -40,6 +44,12 @@ class _TripEditorPageState extends State<TripEditorPage> {
   DateTime? _retour;
   bool _saving = false;
   String? _error;
+  Timer? _coverDebounce;
+  DestinationCoverResult? _coverPreview;
+  bool _coverLoading = false;
+  bool _coverAttempted = false;
+  int _coverRequestId = 0;
+  String _coverLoadedCountry = '';
 
   @override
   void initState() {
@@ -58,15 +68,134 @@ class _TripEditorPageState extends State<TripEditorPage> {
     _statut = trip?.statut ?? 'Planned';
     _depart = trip == null ? null : calendarDate(trip.dateDepart);
     _retour = trip == null ? null : calendarDate(trip.dateRetour);
+    if ((trip?.coverPhotoUrl ?? '').trim().isNotEmpty) {
+      _coverPreview = DestinationCoverResult(
+        imageUrl: trip!.coverPhotoUrl,
+        matchLevel: trip.coverMatchLevel.isEmpty
+            ? DestinationCoverResult.levelExact
+            : trip.coverMatchLevel,
+        resolvedPlace: trip.pays.isNotEmpty ? trip.pays : trip.destination,
+        credit: trip.coverPhotoCredit,
+        country: trip.pays,
+      );
+      _coverLoadedCountry = trip.pays.trim().toLowerCase();
+    } else if (_pays.trim().isNotEmpty) {
+      _scheduleCoverFromCountry(immediate: true);
+    }
   }
 
   @override
   void dispose() {
+    _coverDebounce?.cancel();
     _titre.dispose();
     _destination.dispose();
     _budget.dispose();
     _people.dispose();
     super.dispose();
+  }
+
+  void _onCountrySelected(String value) {
+    final String next = value.trim();
+    final String previous = _pays.trim();
+    // Same country already selected — keep current cover, skip re-search.
+    if (next.isNotEmpty &&
+        next.toLowerCase() == previous.toLowerCase() &&
+        (_coverPreview != null ||
+            _coverLoading ||
+            _coverLoadedCountry == next.toLowerCase())) {
+      return;
+    }
+    _pays = value;
+    _scheduleCoverFromCountry(immediate: true);
+  }
+
+  void _scheduleCoverFromCountry({
+    bool immediate = false,
+    bool forceRefresh = false,
+  }) {
+    _coverDebounce?.cancel();
+    final String country = _pays.trim();
+    // Always drop the previous photo before fetching the new country cover.
+    setState(() {
+      _coverPreview = null;
+      _coverAttempted = false;
+      _coverLoading = country.isNotEmpty;
+      if (country.isEmpty) {
+        _coverLoadedCountry = '';
+      }
+    });
+    if (country.isEmpty) {
+      return;
+    }
+    if (immediate) {
+      _loadCoverPreview(forceRefresh: forceRefresh);
+      return;
+    }
+    _coverDebounce = Timer(const Duration(milliseconds: 80), () {
+      _loadCoverPreview(forceRefresh: forceRefresh);
+    });
+  }
+
+  Future<void> _loadCoverPreview({bool forceRefresh = false}) async {
+    final int requestId = ++_coverRequestId;
+    final String country = _pays.trim();
+    if (country.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _coverPreview = null;
+          _coverLoading = false;
+          _coverAttempted = false;
+          _coverLoadedCountry = '';
+        });
+      }
+      return;
+    }
+    // Skip network when this country cover is already shown.
+    if (!forceRefresh &&
+        _coverLoadedCountry == country.toLowerCase() &&
+        _coverPreview != null &&
+        _coverPreview!.imageUrl.trim().isNotEmpty) {
+      if (mounted) {
+        setState(() => _coverLoading = false);
+      }
+      return;
+    }
+    setState(() {
+      _coverPreview = null;
+      _coverLoading = true;
+      _coverAttempted = false;
+    });
+    try {
+      final TripRepository repository =
+          widget.repository ?? await TripRepository.attached();
+      // Cover is driven only by the selected Country field.
+      final DestinationCoverResult cover = await repository.previewCover(
+        destination: '',
+        country: country,
+        forceRefresh: forceRefresh,
+      );
+      if (!mounted || requestId != _coverRequestId) {
+        return;
+      }
+      if (_pays.trim().toLowerCase() != country.toLowerCase()) {
+        return;
+      }
+      setState(() {
+        _coverPreview = cover.imageUrl.trim().isEmpty ? null : cover;
+        _coverLoading = false;
+        _coverAttempted = true;
+        _coverLoadedCountry = country.toLowerCase();
+      });
+    } catch (_) {
+      if (!mounted || requestId != _coverRequestId) {
+        return;
+      }
+      setState(() {
+        _coverPreview = null;
+        _coverLoading = false;
+        _coverAttempted = true;
+      });
+    }
   }
 
   Future<void> _pickDate({required bool departure}) async {
@@ -157,16 +286,107 @@ class _TripEditorPageState extends State<TripEditorPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
         children: <Widget>[
+          if (_coverLoading ||
+              _coverPreview != null ||
+              (_coverAttempted && _pays.trim().isNotEmpty)) ...<Widget>[
+            if (_coverLoading && _coverPreview == null)
+              Container(
+                height: 160,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8EEF2),
+                  borderRadius: kCardRadius,
+                ),
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: kInk,
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      'Recherche d\'une photo emblématique…',
+                      style: TextStyle(
+                        color: kInk,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (_coverPreview != null)
+              DestinationPhoto(
+                destination: _pays.trim().isEmpty ? 'Pays' : _pays.trim(),
+                country: _pays,
+                imageUrl: _coverPreview?.imageUrl,
+                credit: _coverPreview?.credit,
+                matchLevel: _coverPreview?.matchLevel,
+                height: 160,
+                overlayLabel: _pays.trim().isEmpty ? null : _pays.trim(),
+                autoload: false,
+              )
+            else
+              Container(
+                height: 160,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8EEF2),
+                  borderRadius: kCardRadius,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    Text(
+                      'Aucune photographie fiable pour ${_pays.trim()}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: kInk,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => _scheduleCoverFromCountry(
+                        immediate: true,
+                        forceRefresh: true,
+                      ),
+                      child: const Text('Réessayer'),
+                    ),
+                  ],
+                ),
+              ),
+            if (_coverPreview != null && !_coverLoading)
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 4),
+                child: Text(
+                  _coverPreview!.badgeLabel,
+                  style: const TextStyle(
+                    color: kMute,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
           TripFieldShell(
             label: 'Titre du voyage',
             child: TextField(
               controller: _titre,
               textCapitalization: TextCapitalization.sentences,
               style: _valueStyle,
+              autofillHints: const <String>[],
+              enableSuggestions: false,
+              enableIMEPersonalizedLearning: false,
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 isDense: true,
-                hintText: 'Week-end à Essaouira',
+                hintText: null,
               ),
             ),
           ),
@@ -176,10 +396,13 @@ class _TripEditorPageState extends State<TripEditorPage> {
               controller: _destination,
               textCapitalization: TextCapitalization.words,
               style: _valueStyle,
+              autofillHints: const <String>[],
+              enableSuggestions: false,
+              enableIMEPersonalizedLearning: false,
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 isDense: true,
-                hintText: 'Essaouira',
+                hintText: null,
               ),
             ),
           ),
@@ -194,7 +417,7 @@ class _TripEditorPageState extends State<TripEditorPage> {
               ),
               child: CountryField(
                 value: _pays,
-                onChanged: (String value) => setState(() => _pays = value),
+                onChanged: _onCountrySelected,
               ),
             ),
           ),

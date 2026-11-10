@@ -1,3 +1,5 @@
+import 'trips/gallery_photo.dart';
+
 class Trip {
   const Trip({
     required this.id,
@@ -12,6 +14,10 @@ class Trip {
     required this.statut,
     required this.userId,
     required this.dateCreation,
+    this.coverPhotoUrl = '',
+    this.coverPhotoCredit = '',
+    this.coverMatchLevel = '',
+    this.galleryPhotosJson = '[]',
   });
 
   final int id;
@@ -26,6 +32,13 @@ class Trip {
   final String statut;
   final int userId;
   final DateTime dateCreation;
+  final String coverPhotoUrl;
+  final String coverPhotoCredit;
+  final String coverMatchLevel;
+  final String galleryPhotosJson;
+
+  List<GalleryPhoto> get galleryPhotos =>
+      GalleryPhoto.decodeList(galleryPhotosJson);
 
   int get durationDays {
     final DateTime? start = calendarDate(dateDepart);
@@ -50,6 +63,10 @@ class Trip {
     String? statut,
     int? userId,
     DateTime? dateCreation,
+    String? coverPhotoUrl,
+    String? coverPhotoCredit,
+    String? coverMatchLevel,
+    String? galleryPhotosJson,
   }) {
     return Trip(
       id: id ?? this.id,
@@ -64,6 +81,10 @@ class Trip {
       statut: statut ?? this.statut,
       userId: userId ?? this.userId,
       dateCreation: dateCreation ?? this.dateCreation,
+      coverPhotoUrl: coverPhotoUrl ?? this.coverPhotoUrl,
+      coverPhotoCredit: coverPhotoCredit ?? this.coverPhotoCredit,
+      coverMatchLevel: coverMatchLevel ?? this.coverMatchLevel,
+      galleryPhotosJson: galleryPhotosJson ?? this.galleryPhotosJson,
     );
   }
 
@@ -81,6 +102,10 @@ class Trip {
       'statut': statut,
       'user_id': userId,
       'date_creation': dateCreation.toIso8601String(),
+      'cover_photo_url': coverPhotoUrl,
+      'cover_photo_credit': coverPhotoCredit,
+      'cover_match_level': coverMatchLevel,
+      'gallery_photos_json': galleryPhotosJson,
     };
   }
 
@@ -98,6 +123,10 @@ class Trip {
       statut: row['statut'] as String,
       userId: row['user_id'] as int,
       dateCreation: DateTime.parse(row['date_creation'] as String),
+      coverPhotoUrl: '${row['cover_photo_url'] ?? ''}',
+      coverPhotoCredit: '${row['cover_photo_credit'] ?? ''}',
+      coverMatchLevel: '${row['cover_match_level'] ?? ''}',
+      galleryPhotosJson: '${row['gallery_photos_json'] ?? '[]'}',
     );
   }
 }

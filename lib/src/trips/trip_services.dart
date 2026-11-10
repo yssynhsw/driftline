@@ -1,6 +1,13 @@
+import 'package:http/http.dart' as http;
+
+import 'gemini_service.dart';
+import 'open_meteo_service.dart';
 import 'trip_validation.dart';
 
-/// Future Gemini integration. This phase never calls a network generator.
+export 'gemini_service.dart';
+export 'open_meteo_service.dart';
+
+/// Contract for Gemini itinerary generation.
 abstract class ItineraryGenerator {
   bool get isAvailable;
 
@@ -27,15 +34,15 @@ class UnavailableItineraryGenerator implements ItineraryGenerator {
     required double budget,
     required String preferences,
   }) {
-    throw UnsupportedError('Génération IA bientôt disponible.');
+    throw UnsupportedError('Génération IA indisponible.');
   }
 }
 
-/// Future Open-Meteo integration. No forecast is fetched in this phase.
+/// Contract for destination weather forecasts.
 abstract class DestinationForecast {
   bool get isAvailable;
 
-  Future<void> load({
+  Future<WeatherForecastResult> load({
     required String destination,
     required String dateDepart,
     required String dateRetour,
@@ -49,11 +56,24 @@ class UnavailableDestinationForecast implements DestinationForecast {
   bool get isAvailable => false;
 
   @override
-  Future<void> load({
+  Future<WeatherForecastResult> load({
     required String destination,
     required String dateDepart,
     required String dateRetour,
   }) {
-    throw UnsupportedError('Prévisions météo bientôt disponibles.');
+    throw UnsupportedError('Prévisions météo indisponibles.');
+  }
+}
+
+/// Default wired services for Gestion 2.
+class TripServiceLocator {
+  TripServiceLocator._();
+
+  static ItineraryGenerator itineraryGenerator({http.Client? client}) {
+    return GeminiItineraryGenerator(client: client);
+  }
+
+  static DestinationForecast destinationForecast({http.Client? client}) {
+    return OpenMeteoForecastService(client: client);
   }
 }
