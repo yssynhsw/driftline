@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: driftline-gemini-proxy
+  servlet:
+    multipart:
+      max-request-size: 256KB
+
+server:
+  port: ${PORT:8080}
+  # Listen on all interfaces so classmates on the same Wi‑Fi can reach the proxy.
+  address: ${SERVER_ADDRESS:0.0.0.0}
+  error:
+    include-message: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+driftline:
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3-flash-preview}
+    base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
+    timeout-ms: ${GEMINI_TIMEOUT_MS:55000}
+  security:
+    app-token: ${DRIFTLINE_APP_TOKEN:}
+    rate-limit-per-minute: ${RATE_LIMIT_PER_MINUTE:12}
+
+logging:
+  level:
+    root: INFO
+    com.driftline.gemini: INFO

@@ -81,3 +81,9 @@ Leave that window open on its own. It is a separate process from `flutter run`. 
 `TWILIO_FROM` is the sending number. This trial still needs a verified phone in the Twilio console before that number can be claimed. Profile phones need a country code, such as `+212612345678`.
 
 Session id is stored in shared preferences on this development build. Production should move that token to platform secure storage and keep authorization on a server, not in the Flutter binary.
+
+## Gestion 2 — Voyages et itinéraires
+
+The same `driftline.db` now holds itinerary days and steps. Regular accounts open **Voyages** instead of a traveler directory. The assistant tab, weather chip, campfire palette, and Fraunces type stay on every screen.
+
+Gemini itineraries can use the local relay `GEMINI_API_KEY` in `tool/local.env`, or the Spring proxy in `backend/` for classmates. Never put that key in Dart. See `docs/gestion2-soutenance.md` and `backend/README.md`.

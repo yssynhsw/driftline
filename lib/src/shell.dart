@@ -8,6 +8,7 @@ import 'guide.dart';
 import 'photo.dart';
 import 'store.dart';
 import 'theme.dart';
+import 'trips/screens/trips_list_screen.dart';
 
 const List<String> _preferenceCatalog = <String>[
   'Beach',
@@ -136,24 +137,6 @@ String _hexKey(String raw) {
     text = text.substring(2);
   }
   return text;
-}
-
-String _formatDate(DateTime value) {
-  const List<String> months = <String>[
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  return '${value.day} ${months[value.month - 1]} ${value.year}';
 }
 
 String _encodePreferences(Set<String> selected) {
@@ -310,60 +293,14 @@ class _Deck extends StatefulWidget {
 }
 
 class _DeckState extends State<_Deck> {
-  final TextEditingController _search = TextEditingController();
   int _tab = 0;
   bool _month = false;
   bool _busy = false;
-  bool _loadingTravelers = true;
-  int _request = 0;
-  List<AppUser> _travelers = const <AppUser>[];
-
-  @override
-  void initState() {
-    super.initState();
-    _search.addListener(_loadTravelers);
-    _loadTravelers();
-  }
-
-  @override
-  void dispose() {
-    _search.removeListener(_loadTravelers);
-    _search.dispose();
-    super.dispose();
-  }
 
   void _selectTab(int index) {
     setState(() {
       _tab = index;
     });
-    if (index == 1) {
-      _loadTravelers();
-    }
-  }
-
-  Future<void> _loadTravelers() async {
-    final int request = ++_request;
-    final String query = _search.text.trim();
-    try {
-      final List<AppUser> users = await UserStore.instance.listUsers(
-        query: query,
-      );
-      if (!mounted || request != _request) {
-        return;
-      }
-      setState(() {
-        _travelers = users;
-        _loadingTravelers = false;
-      });
-    } catch (error) {
-      if (!mounted || request != _request) {
-        return;
-      }
-      setState(() {
-        _loadingTravelers = false;
-      });
-      _message('$error');
-    }
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -463,7 +400,6 @@ class _DeckState extends State<_Deck> {
     if (!mounted) {
       return;
     }
-    await _loadTravelers();
   }
 
   Future<void> _security() async {
@@ -706,20 +642,6 @@ class _DeckState extends State<_Deck> {
     });
   }
 
-  void _openTraveler(AppUser person) {
-    showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: false,
-      isScrollControlled: true,
-      backgroundColor: kBg,
-      elevation: 0,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (BuildContext context) => _TravelerSheet(person: person),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final _Session session = _Session.of(context);
@@ -760,12 +682,7 @@ class _DeckState extends State<_Deck> {
                             onSessionUser: session.onUser,
                             onSessionDeleted: session.onSignedOut,
                           )
-                        : _TravelersPage(
-                            controller: _search,
-                            loading: _loadingTravelers,
-                            people: _travelers,
-                            onOpen: _openTraveler,
-                          ),
+                        : TripsListScreen(userId: user.id),
                   ),
                   _FadePane(
                     visible: _tab == 2,
@@ -928,6 +845,21 @@ class _HomePage extends StatelessWidget {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 12),
+        _Pill(
+          label: 'Mes voyages',
+          icon: Icons.luggage_outlined,
+          background: kInk,
+          foreground: kPaper,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (BuildContext context) =>
+                    TripsListScreen(userId: user.id),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 18),
         _WeekCard(
@@ -1251,316 +1183,6 @@ class _BadgeRow extends StatelessWidget {
   }
 }
 
-class _TravelersPage extends StatelessWidget {
-  const _TravelersPage({
-    required this.controller,
-    required this.loading,
-    required this.people,
-    required this.onOpen,
-  });
-
-  final TextEditingController controller;
-  final bool loading;
-  final List<AppUser> people;
-  final ValueChanged<AppUser> onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool searching = controller.text.trim().isNotEmpty;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        const Padding(
-          padding: EdgeInsets.fromLTRB(22, 8, 48, 0),
-          child: Text('Travelers', style: _display),
-        ),
-        const SizedBox(height: 6),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(22, 0, 48, 0),
-          child: Text('Find someone to travel with.', style: _quiet),
-        ),
-        const SizedBox(height: 14),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 0, 48, 0),
-          child: _SearchField(controller: controller),
-        ),
-        const SizedBox(height: 16),
-        Expanded(child: _list(searching)),
-      ],
-    );
-  }
-
-  Widget _list(bool searching) {
-    if (loading && people.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: kInk));
-    }
-    if (people.isEmpty) {
-      return _EmptyTravelers(
-        message: searching ? 'No travelers found' : 'No travelers yet',
-      );
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(22, 0, 48, 128),
-      itemCount: people.length,
-      separatorBuilder: (BuildContext context, int index) {
-        return const SizedBox(height: 10);
-      },
-      itemBuilder: (BuildContext context, int index) {
-        final AppUser person = people[index];
-        return _TravelerCard(person: person, onTap: () => onOpen(person));
-      },
-    );
-  }
-}
-
-class _SearchField extends StatelessWidget {
-  const _SearchField({required this.controller});
-
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      cursorColor: kInk,
-      style: const TextStyle(color: kInk, fontWeight: FontWeight.w600),
-      decoration: InputDecoration(
-        hintText: 'Search travelers',
-        hintStyle: const TextStyle(color: kMute, fontWeight: FontWeight.w500),
-        prefixIcon: const Icon(Icons.search, color: kMute),
-        filled: true,
-        fillColor: kPaper,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
-        border: _outline(kLine),
-        enabledBorder: _outline(kLine),
-        focusedBorder: _outline(kOrange),
-      ),
-    );
-  }
-
-  OutlineInputBorder _outline(Color color) {
-    return OutlineInputBorder(
-      borderRadius: BorderRadius.circular(18),
-      borderSide: BorderSide(color: color),
-    );
-  }
-}
-
-class _EmptyTravelers extends StatelessWidget {
-  const _EmptyTravelers({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 24, 48, 128),
-      child: Column(
-        children: <Widget>[
-          const Icon(Icons.travel_explore, color: kMute, size: 42),
-          const SizedBox(height: 10),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: kInk,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TravelerCard extends StatelessWidget {
-  const _TravelerCard({required this.person, required this.onTap});
-
-  final AppUser person;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: kPaper,
-      borderRadius: BorderRadius.circular(22),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: kNavy),
-          ),
-          child: Row(
-            children: <Widget>[
-              _Avatar(user: person, radius: 24),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      person.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: kInk,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      person.pays.isEmpty ? '—' : person.pays,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: _quiet,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              _LevelPill(label: person.niveauVoyageur),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TravelerSheet extends StatelessWidget {
-  const _TravelerSheet({required this.person});
-
-  final AppUser person;
-
-  @override
-  Widget build(BuildContext context) {
-    final String preferences = person.preferences.isEmpty
-        ? 'None yet'
-        : person.preferences.join(', ');
-    final double bottom = MediaQuery.paddingOf(context).bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(22, 12, 22, 24 + bottom),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Center(
-              child: Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: kLine,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: <Widget>[
-                _Avatar(user: person, radius: 28),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        person.name,
-                        style: const TextStyle(
-                          color: kInk,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(person.niveauVoyageur, style: _quiet),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            _Detail(label: 'Phone', value: person.phone),
-            _Detail(
-              label: 'Phone status',
-              value: '',
-              trailing: person.phoneVerified
-                  ? const Icon(Icons.verified, color: kVerified, size: 18)
-                  : const UnverifiedBadge(),
-            ),
-            _Detail(label: 'Bio', value: person.bio),
-            _Detail(
-              label: 'Email',
-              value: person.email,
-              trailing: person.emailVerified
-                  ? const Icon(Icons.verified, color: kVerified, size: 18)
-                  : const UnverifiedBadge(size: 20),
-            ),
-            _Detail(label: 'Langue', value: person.langue),
-            _Detail(label: 'Preferences', value: preferences),
-            if (person.isAdmin)
-              _Detail(label: 'Rôle', value: person.roleLabel),
-            _Detail(label: 'Date', value: _formatDate(person.dateCreation)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Detail extends StatelessWidget {
-  const _Detail({required this.label, required this.value, this.trailing});
-
-  final String label;
-  final String value;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            label,
-            style: const TextStyle(
-              color: kMute,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Row(
-            children: <Widget>[
-              Flexible(
-                child: Text(
-                  value.isEmpty && trailing != null ? '' : (value.isEmpty ? '—' : value),
-                  style: const TextStyle(
-                    color: kInk,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              if (trailing != null) ...<Widget>[
-                const SizedBox(width: 6),
-                trailing!,
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _ProfilePage extends StatelessWidget {
   const _ProfilePage({
@@ -2843,8 +2465,8 @@ class _BottomNav extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: <Widget>[
           _NavButton(
-            icon: admin ? Icons.dashboard_outlined : Icons.show_chart,
-            label: admin ? 'Dashboard' : 'Travelers',
+            icon: admin ? Icons.dashboard_outlined : Icons.luggage_outlined,
+            label: admin ? 'Dashboard' : 'Voyages',
             selected: tab == 1,
             onTap: () => onChanged(1),
           ),

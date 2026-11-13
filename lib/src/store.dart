@@ -10,6 +10,7 @@ import 'package:sqflite/sqflite.dart';
 import 'db_factory_io.dart' if (dart.library.html) 'db_factory_web.dart';
 import 'mail.dart';
 import 'trip.dart';
+import 'trips/trip_database.dart';
 import 'user.dart';
 
 export 'trip.dart';
@@ -35,10 +36,14 @@ class UserStore {
     final String dbPath = join(await getDatabasesPath(), 'driftline.db');
     _db = await openDatabase(
       dbPath,
-      version: 6,
+      version: 9,
+      onConfigure: (Database db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: (Database db, int _) async {
         await _createUsers(db);
         await _createTrips(db);
+        await TripDatabase.createTable(db);
         await _createAudit(db);
         await _createGuide(db);
       },
@@ -57,6 +62,16 @@ class UserStore {
         }
         if (oldVersion < 6) {
           await _createGuide(db);
+        }
+        if (oldVersion < 7) {
+          await TripDatabase.createTable(db);
+        }
+        if (oldVersion < 8) {
+          await TripDatabase.migrateV6(db);
+        }
+        if (oldVersion < 9) {
+          await TripDatabase.migrateV7(db);
+          await TripDatabase.migrateV8(db);
         }
       },
     );
@@ -949,6 +964,8 @@ class UserStore {
     return _userFromRow(rows.first);
   }
 
+  Future<Database> connection() => _database();
+
   Future<Database> _database() async {
     final current = _db;
     if (current != null) {
@@ -1392,27 +1409,17 @@ CREATE TABLE trips (
   type_voyage TEXT NOT NULL,
   statut TEXT NOT NULL,
   user_id INTEGER NOT NULL,
-  date_creation TEXT NOT NULL
+  date_creation TEXT NOT NULL,
+  cover_photo_url TEXT NOT NULL DEFAULT '',
+  cover_photo_credit TEXT NOT NULL DEFAULT '',
+  cover_match_level TEXT NOT NULL DEFAULT '',
+  gallery_photos_json TEXT NOT NULL DEFAULT '[]',
+  FOREIGN KEY(user_id) REFERENCES users(id_user) ON DELETE CASCADE
 )
 ''');
   }
 
-  Trip _tripFromRow(Map<String, Object?> row) {
-    return Trip(
-      id: row['id_trip'] as int,
-      titre: row['titre'] as String,
-      destination: row['destination'] as String,
-      pays: row['pays'] as String,
-      dateDepart: row['date_depart'] as String,
-      dateRetour: row['date_retour'] as String,
-      budget: (row['budget'] as num).toDouble(),
-      nombreVoyageurs: row['nombre_voyageurs'] as int,
-      typeVoyage: row['type_voyage'] as String,
-      statut: row['statut'] as String,
-      userId: row['user_id'] as int,
-      dateCreation: DateTime.parse(row['date_creation'] as String),
-    );
-  }
+  Trip _tripFromRow(Map<String, Object?> row) => Trip.fromMap(row);
 
   String _niveauFor(int trips) {
     if (trips < 3) {
